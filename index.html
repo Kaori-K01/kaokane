@@ -163,7 +163,7 @@ input[type="date"]{
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.10</div>
+    <div class="badge">v0.10.1</div>
   </div>
 
   <section id="home" class="screen active">
@@ -1376,9 +1376,6 @@ try{
     '<div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">この表示環境ではデータ保存機能が使えません。Safariなど通常のブラウザで開いてください。</div>');
   console.error(err);
 }
-</script>ans-serif;font-weight:700">この表示環境ではデータ保存機能が使えません。Safariなど通常のブラウザで開いてください。</div>');
-  console.error(err);
-}
 </script>
 
 
@@ -1386,7 +1383,7 @@ try{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.1', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
