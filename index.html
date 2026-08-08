@@ -85,13 +85,24 @@ textarea{min-height:86px;resize:vertical}
 
 .bulk-check{width:24px;height:24px;flex:0 0 auto;margin-top:4px}
 .item.selecting{align-items:flex-start}
+
+.threshold-card{overflow:hidden}
+.settings-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.settings-title{font-size:22px;font-weight:850;margin-top:4px}
+.settings-mark{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#111;color:#fff;font-size:20px;font-weight:900}
+.threshold-input-wrap{display:flex;align-items:center;border:1.5px solid #d8d8d8;border-radius:16px;background:#fafafa;padding:4px 14px;margin-bottom:10px}
+.yen-prefix{font-size:28px;font-weight:850;color:#444;margin-right:8px}
+.threshold-input{border:0!important;background:transparent!important;border-radius:0!important;padding:12px 0!important;font-size:30px!important;font-weight:850!important;outline:none}
+.danger-zone{margin:28px 4px 8px;padding-top:18px;border-top:1px solid var(--line)}
+.reset-link{border:0;background:none;padding:3px 0;color:#8b8b8b;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.reset-link:active{color:var(--danger)}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.4.1</div>
+    <div class="badge">v0.5</div>
   </div>
 
   <section id="home" class="screen active">
@@ -116,15 +127,11 @@ textarea{min-height:86px;resize:vertical}
       <div class="list" id="highList"></div>
     </div>
 
-    <div class="section-title">すぐ記録</div>
+    <div class="section-title">支出を記録</div>
     <div class="card">
-      <div class="quick-grid">
-        <button class="btn secondary" onclick="quickAmount(100)">+100円</button>
-        <button class="btn secondary" onclick="quickAmount(500)">+500円</button>
-        <button class="btn secondary" onclick="quickAmount(1000)">+1,000円</button>
-      </div>
-      <button class="btn full" style="margin-top:10px" onclick="go('add')">通常入力</button>
-      <button class="btn ghost full" style="margin-top:10px" onclick="startArcade()">🎮 ゲーセンモード</button>
+      <button class="btn full" onclick="go('add');setTimeout(()=>document.getElementById('amount')?.focus(),180)">金額を入力する</button>
+      <div class="note" style="margin-top:10px">端数までそのまま入力できます。</div>
+      <button class="btn ghost full" style="margin-top:12px" onclick="startArcade()">🎮 ゲーセンモード</button>
     </div>
 
     <div class="section-title">最近の支出</div>
@@ -256,13 +263,20 @@ textarea{min-height:86px;resize:vertical}
 
   <section id="settings" class="screen">
     <div class="section-title">設定</div>
-    <div class="card">
-      <div class="form-grid">
-        <label>高額支出とする金額
-          <input id="thresholdInput" type="number" min="1000" step="1000">
-        </label>
-        <button class="btn full" onclick="saveThreshold()">保存</button>
+    <div class="card threshold-card">
+      <div class="settings-head">
+        <div>
+          <div class="kicker">HIGH SPEND ALERT</div>
+          <div class="settings-title">高額支出の基準</div>
+        </div>
+        <div class="settings-mark">!</div>
       </div>
+      <div class="threshold-input-wrap">
+        <span class="yen-prefix">¥</span>
+        <input id="thresholdInput" class="threshold-input" type="number" min="1000" step="1000" inputmode="numeric">
+      </div>
+      <div class="note">この金額以上の支出をホームで目立たせ、メモ入力を必須にします。</div>
+      <button class="btn full" style="margin-top:14px" onclick="saveThreshold()">設定する</button>
     </div>
     <div class="card">
       <div class="kicker">データについて</div>
@@ -273,12 +287,9 @@ textarea{min-height:86px;resize:vertical}
       </div>
     </div>
 
-    <div class="card danger-card">
-      <div class="kicker danger">データ管理</div>
-      <div class="note" style="margin-top:8px">
-        テストデータを消したい場合などに使用します。実行すると、このiPhone内のカオカネの支出・収入・資産データがすべて削除されます。
-      </div>
-      <button class="btn danger full" style="margin-top:12px" onclick="resetAllData()">すべてのデータを初期化</button>
+    <div class="danger-zone">
+      <button class="reset-link" onclick="resetAllData()">すべてのデータを初期化</button>
+      <div class="note" style="margin-top:6px">支出・収入・資産データをこのiPhoneから削除します。</div>
     </div>
   </section>
 
@@ -499,7 +510,9 @@ function updateCash(){
 }
 function saveThreshold(){
   state.threshold=Math.max(1000,Number(el.thresholdInput.value||10000));
-  el.thresholdInput.value=state.threshold; render(); alert('保存しました');
+  el.thresholdInput.value=state.threshold;
+  render();
+  alert(`${state.threshold.toLocaleString('ja-JP')}円に設定しました。`);
 }
 function resetAllData(){
   if(!confirm('カオカネの支出・収入・資産データをすべて削除します。元に戻せません。実行しますか？')) return;
@@ -561,7 +574,6 @@ function bulkDelete(){
   el.bulkDeleteBtn.classList.add('hidden');
   el.bulkInfo.classList.add('hidden');
   render();
-  alert(`${ids.length}件削除しました。`);
 }
 
 function isThisMonth(d){
@@ -661,7 +673,7 @@ try{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.4.1', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.5', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {

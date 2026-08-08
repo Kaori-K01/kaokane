@@ -1,4 +1,4 @@
-const CACHE='kaokane-v0.4.1';
+const CACHE='kaokane-v0.5';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon-180.png','./icon-512.png'];
 
 self.addEventListener('install', event => {
