@@ -129,7 +129,7 @@ textarea{min-height:86px;resize:vertical}
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.7</div>
+    <div class="badge">v0.8</div>
   </div>
 
   <section id="home" class="screen active">
@@ -228,7 +228,8 @@ textarea{min-height:86px;resize:vertical}
           <input id="date" type="date" required>
         </label>
         <label>メモ
-          <textarea id="memo" placeholder="任意。高額支出では必須です"></textarea>
+          <textarea id="memo" placeholder="任意。しかし、高額支出では必須。"></textarea>
+          <span class="note">任意。しかし、高額支出では必須。</span>
         </label>
         <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
           <input id="approx" type="checkbox" style="width:auto"> 概算として記録
@@ -283,7 +284,8 @@ textarea{min-height:86px;resize:vertical}
           <input id="editDate" type="date" required>
         </label>
         <label>メモ
-          <textarea id="editMemo" placeholder="任意。高額支出では必須です"></textarea>
+          <textarea id="editMemo" placeholder="任意。しかし、高額支出では必須。"></textarea>
+          <span class="note">任意。しかし、高額支出では必須。</span>
         </label>
         <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
           <input id="editApprox" type="checkbox" style="width:auto"> 概算として記録
@@ -410,7 +412,7 @@ textarea{min-height:86px;resize:vertical}
 <script>
 const $ = (id) => document.getElementById(id);
 const categories = ['食費','外食','住居','通信費','交通費','車','日用品','衣服・美容','医療','交際費','勉強・仕事','サブスク','税金・保険','その他'];
-const payments = ['現金','Amazonカード','dカード','PayPay','イオンカード','d払い','銀行口座'];
+const payments = ['現金','Amazonカード','dカード','PayPay','イオンカード','d払い','銀行口座','その他'];
 const incomeCategories = ['給与','賞与','臨時収入','返金','その他'];
 
 const ids = [
@@ -434,7 +436,7 @@ const state = {
   get threshold(){ return Number(localStorage.getItem('kaokane_threshold')||10000) },
   set threshold(v){ localStorage.setItem('kaokane_threshold',String(v)) },
   get paymentMap(){
-    const defaults={'現金':'cash','Amazonカード':'bank','dカード':'bank','PayPay':'bank','イオンカード':'bank','d払い':'bank','銀行口座':'bank'};
+    const defaults={'現金':'cash','Amazonカード':'bank','dカード':'bank','PayPay':'bank','イオンカード':'bank','d払い':'bank','銀行口座':'bank','その他':'none'};
     try{return {...defaults,...JSON.parse(localStorage.getItem('kaokane_payment_map')||'{}')}}catch{return defaults}
   },
   set paymentMap(v){ localStorage.setItem('kaokane_payment_map',JSON.stringify(v)) }
@@ -453,7 +455,9 @@ function setup(){
   el.editCategory.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.editPayment.innerHTML=payments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.date.value=today(); el.incomeDate.value=today(); el.thresholdInput.value=state.threshold; el.thresholdDisplay.textContent=yen(state.threshold);
+  const resumeArcade=restoreArcadeSession();
   render();
+  if(resumeArcade) setTimeout(()=>go('arcade'),80);
 }
 
 function go(id){
@@ -576,18 +580,64 @@ function quickAmount(amt){
 }
 
 function setHistoryFilter(v){ historyFilter=v; renderHistory(); }
-function startArcade(){ arcadeSum=0; el.arcadeTotal.textContent=yen(0); go('arcade'); }
-function arcadeAdd(n){ arcadeSum+=n; el.arcadeTotal.textContent=yen(arcadeSum); }
+
+function effectiveExpenseAmount(x){
+  const refunded=(x.splits||[]).filter(s=>s.settled).reduce((sum,s)=>sum+Number(s.amount||0),0);
+  return Math.max(0,Number(x.amount||0)-refunded);
+}
+function saveArcadeSession(){
+  localStorage.setItem('kaokane_arcade_session',JSON.stringify({
+    active:true,
+    sum:arcadeSum,
+    startedAt:localStorage.getItem('kaokane_arcade_started_at')||new Date().toISOString()
+  }));
+  if(!localStorage.getItem('kaokane_arcade_started_at')){
+    localStorage.setItem('kaokane_arcade_started_at',new Date().toISOString());
+  }
+}
+function clearArcadeSession(){
+  localStorage.removeItem('kaokane_arcade_session');
+  localStorage.removeItem('kaokane_arcade_started_at');
+}
+function restoreArcadeSession(){
+  try{
+    const s=JSON.parse(localStorage.getItem('kaokane_arcade_session')||'null');
+    if(s && s.active){
+      arcadeSum=Number(s.sum||0);
+      el.arcadeTotal.textContent=yen(arcadeSum);
+      return true;
+    }
+  }catch{}
+  return false;
+}
+function startArcade(){
+  arcadeSum=0;
+  el.arcadeTotal.textContent=yen(0);
+  localStorage.setItem('kaokane_arcade_started_at',new Date().toISOString());
+  saveArcadeSession();
+  go('arcade');
+}
+function arcadeAdd(n){
+  arcadeSum+=n;
+  el.arcadeTotal.textContent=yen(arcadeSum);
+  saveArcadeSession();
+}
 function finishArcade(){
   if(!arcadeSum){ cancelArcade(); return; }
   const xs=state.expenses;
   xs.push({id:uid(),amount:arcadeSum,category:'交際費',type:'娯楽',payment:'現金',date:today(),
-    memo:'ゲームセンター',approx:false,unorganized:false,createdAt:new Date().toISOString()});
+    memo:'ゲームセンター',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[]});
   state.expenses=xs;
   applyExpenseBalance('現金',arcadeSum,-1);
-  arcadeSum=0; go('home');
+  arcadeSum=0;
+  clearArcadeSession();
+  go('home');
 }
-function cancelArcade(){ arcadeSum=0; go('home'); }
+function cancelArcade(){
+  arcadeSum=0;
+  clearArcadeSession();
+  go('home');
+}
 
 function updateBank(){
   const a=state.assets; a.bank=Number(el.bankInput.value||0); a.bankUpdated=today(); state.assets=a;
@@ -777,7 +827,10 @@ function itemHTML(x){
     x.unorganized?'<span class="pill danger">未整理</span>':'',
     x.approx?'<span class="pill">概算</span>':''
   ].join(' ');
-  const sub=[x.date,x.category,x.type,x.payment,x.memo].filter(Boolean).map(esc).join(' · ');
+  const refunded=(x.splits||[]).filter(s=>s.settled).reduce((sum,s)=>sum+Number(s.amount||0),0);
+  const net=effectiveExpenseAmount(x);
+  const refundNote=refunded>0?`実質負担 ${yen(net)}`:'';
+  const sub=[x.date,x.category,x.type,x.payment,x.memo,refundNote].filter(Boolean).map(esc).join(' · ');
   const checked=selectedExpenseIds.has(x.id)?'checked':'';
   const checkbox=bulkMode?`<input class="bulk-check" type="checkbox" ${checked} onclick="event.stopPropagation();toggleSelectExpense('${esc(x.id)}')">`:'';
   const click=bulkMode?`toggleSelectExpense('${esc(x.id)}')`:`openEdit('${esc(x.id)}')`;
@@ -813,7 +866,7 @@ function renderHistory(){
   el.histAllBtn.classList.toggle('active',historyFilter==='all');
   el.histHighBtn.classList.toggle('active',historyFilter==='high');
   let xs=[...state.expenses].sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
-  if(historyFilter==='high') xs=xs.filter(x=>x.amount>=state.threshold);
+  if(historyFilter==='high') xs=xs.filter(x=>effectiveExpenseAmount(x)>=state.threshold);
   el.historyList.innerHTML=xs.map(itemHTML).join('')||'<div class="empty">該当する支出はありません。</div>';
   updateBulkInfo();
 }
@@ -845,7 +898,7 @@ function render(){
   el.unorganizedCard.classList.toggle('hidden',un.length===0);
   el.unorganizedText.textContent=un.length?`${un.length}件あります。タップして内容を完成させてください。`:'';
 
-  const high=month.filter(x=>x.amount>=state.threshold).sort((a,b)=>b.amount-a.amount);
+  const high=month.filter(x=>effectiveExpenseAmount(x)>=state.threshold).sort((a,b)=>effectiveExpenseAmount(b)-effectiveExpenseAmount(a));
   el.highCard.classList.toggle('hidden',high.length===0);
   el.highList.innerHTML=high.slice(0,4).map(itemHTML).join('');
 
@@ -877,6 +930,31 @@ function render(){
   renderHistory(); renderAssets(); renderPaymentMap();
 }
 
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    try{
+      const s=JSON.parse(localStorage.getItem('kaokane_arcade_session')||'null');
+      if(s && s.active){
+        arcadeSum=Number(s.sum||0);
+        el.arcadeTotal.textContent=yen(arcadeSum);
+        const arcadeScreen=$('arcade');
+        if(arcadeScreen && !arcadeScreen.classList.contains('active')) go('arcade');
+      }
+    }catch{}
+  }
+});
+window.addEventListener('pageshow',()=>{
+  try{
+    const s=JSON.parse(localStorage.getItem('kaokane_arcade_session')||'null');
+    if(s && s.active){
+      arcadeSum=Number(s.sum||0);
+      el.arcadeTotal.textContent=yen(arcadeSum);
+      setTimeout(()=>go('arcade'),40);
+    }
+  }catch{}
+});
+
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
   updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap
@@ -898,7 +976,7 @@ try{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.7', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.8', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
