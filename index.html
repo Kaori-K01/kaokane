@@ -82,13 +82,16 @@ textarea{min-height:86px;resize:vertical}
 .hr{height:1px;background:var(--line);margin:12px 0}
 .empty{color:var(--muted);font-size:13px;padding:8px 0}
 .small{font-size:12px}
+
+.bulk-check{width:24px;height:24px;flex:0 0 auto;margin-top:4px}
+.item.selecting{align-items:flex-start}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.3</div>
+    <div class="badge">v0.4</div>
   </div>
 
   <section id="home" class="screen active">
@@ -134,6 +137,11 @@ textarea{min-height:86px;resize:vertical}
       <button id="histAllBtn" class="active" onclick="setHistoryFilter('all')">すべて</button>
       <button id="histHighBtn" onclick="setHistoryFilter('high')">高額支出</button>
     </div>
+    <div class="row" style="margin-bottom:12px">
+      <button id="bulkModeBtn" class="btn secondary" style="flex:1" onclick="toggleBulkMode()">複数選択</button>
+      <button id="bulkDeleteBtn" class="btn danger hidden" style="flex:1" onclick="bulkDelete()">選択した支出を削除</button>
+    </div>
+    <div id="bulkInfo" class="notice hidden" style="margin-bottom:12px">0件選択中</div>
     <div class="card"><div class="list" id="historyList"></div></div>
   </section>
 
@@ -312,7 +320,7 @@ const ids = [
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
 'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
-'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn'
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo'
 ];
 const el = {};
 ids.forEach(id => el[id] = $(id));
@@ -328,7 +336,7 @@ const state = {
   set threshold(v){ localStorage.setItem('kaokane_threshold',String(v)) }
 };
 
-let expenseType='必要', editExpenseType='必要', historyFilter='all', arcadeSum=0;
+let expenseType='必要', editExpenseType='必要', historyFilter='all', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set();
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const today=()=>{ const d=new Date(); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -502,6 +510,60 @@ function resetAllData(){
   go('home');
 }
 
+
+function toggleBulkMode(){
+  bulkMode=!bulkMode;
+  selectedExpenseIds.clear();
+  el.bulkModeBtn.textContent=bulkMode?'選択をやめる':'複数選択';
+  el.bulkDeleteBtn.classList.toggle('hidden',!bulkMode);
+  el.bulkInfo.classList.toggle('hidden',!bulkMode);
+  updateBulkInfo();
+  renderHistory();
+}
+
+function toggleSelectExpense(id){
+  if(!bulkMode) return;
+  if(selectedExpenseIds.has(id)) selectedExpenseIds.delete(id);
+  else selectedExpenseIds.add(id);
+  updateBulkInfo();
+  renderHistory();
+}
+
+function updateBulkInfo(){
+  if(!el.bulkInfo) return;
+  const n=selectedExpenseIds.size;
+  el.bulkInfo.textContent=`${n}件選択中`;
+  if(el.bulkDeleteBtn){
+    el.bulkDeleteBtn.disabled=n===0;
+    el.bulkDeleteBtn.style.opacity=n===0?'.45':'1';
+  }
+}
+
+function bulkDelete(){
+  const ids=[...selectedExpenseIds];
+  if(ids.length===0) return;
+  if(!confirm(`${ids.length}件の支出をまとめて削除しますか？`)) return;
+
+  const xs=state.expenses;
+  const deleting=xs.filter(x=>selectedExpenseIds.has(x.id));
+  const cashBack=deleting.filter(x=>x.payment==='現金').reduce((s,x)=>s+Number(x.amount||0),0);
+
+  if(cashBack>0){
+    const a=state.assets;
+    a.cash=Number(a.cash||0)+cashBack;
+    state.assets=a;
+  }
+
+  state.expenses=xs.filter(x=>!selectedExpenseIds.has(x.id));
+  selectedExpenseIds.clear();
+  bulkMode=false;
+  el.bulkModeBtn.textContent='複数選択';
+  el.bulkDeleteBtn.classList.add('hidden');
+  el.bulkInfo.classList.add('hidden');
+  render();
+  alert(`${ids.length}件削除しました。`);
+}
+
 function isThisMonth(d){
   const x=new Date(d+'T00:00:00'), n=new Date();
   return x.getFullYear()===n.getFullYear() && x.getMonth()===n.getMonth();
@@ -519,7 +581,11 @@ function itemHTML(x){
     x.approx?'<span class="pill">概算</span>':''
   ].join(' ');
   const sub=[x.date,x.category,x.type,x.payment,x.memo].filter(Boolean).map(esc).join(' · ');
-  return `<div class="item" onclick="openEdit('${esc(x.id)}')" style="cursor:pointer">
+  const checked=selectedExpenseIds.has(x.id)?'checked':'';
+  const checkbox=bulkMode?`<input class="bulk-check" type="checkbox" ${checked} onclick="event.stopPropagation();toggleSelectExpense('${esc(x.id)}')">`:'';
+  const click=bulkMode?`toggleSelectExpense('${esc(x.id)}')`:`openEdit('${esc(x.id)}')`;
+  return `<div class="item ${bulkMode?'selecting':''}" onclick="${click}" style="cursor:pointer">
+    ${checkbox}
     <div class="item-main">
       <div class="item-title">${flags||esc(x.category)||'支出'}</div>
       <div class="item-sub">${sub}</div>
@@ -533,7 +599,7 @@ function renderHistory(){
   el.histHighBtn.classList.toggle('active',historyFilter==='high');
   let xs=[...state.expenses].sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
   if(historyFilter==='high') xs=xs.filter(x=>x.amount>=state.threshold);
-  el.historyList.innerHTML=xs.map(itemHTML).join('')||'<div class="empty">該当する支出はありません。</div>';
+  el.historyList.innerHTML=xs.map(itemHTML).join('')||'<div class="empty">該当する支出はありません。</div>'; updateBulkInfo();
 }
 
 function renderAssets(){
@@ -576,7 +642,7 @@ function render(){
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete
 });
 
 try{
