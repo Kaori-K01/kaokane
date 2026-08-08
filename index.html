@@ -117,13 +117,19 @@ textarea{min-height:86px;resize:vertical}
 .unsettled-name{font-weight:800}
 .unsettled-sub{font-size:12px;color:var(--muted);margin-top:3px}
 .settle-btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 8px;font-size:11px;font-weight:800}
+
+.mapping-list{display:grid;gap:10px}
+.mapping-row{display:grid;grid-template-columns:1fr 145px;gap:10px;align-items:center}
+.mapping-name{font-weight:800}
+.mapping-row select{padding:10px}
+.asset-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.45}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.6</div>
+    <div class="badge">v0.7</div>
   </div>
 
   <section id="home" class="screen active">
@@ -316,14 +322,14 @@ textarea{min-height:86px;resize:vertical}
     <div class="compact-setting-card">
       <div>
         <div class="kicker">残高の手動修正</div>
-        <div class="note">記録漏れや実残高との差があるときだけ使用</div>
+        <div class="note">記録漏れなどでズレたときだけ使用</div>
       </div>
       <button class="mini-action" onclick="toggleBalanceAdjust()">残高を修正</button>
     </div>
 
     <div id="balanceAdjustPanel" class="card hidden">
       <div class="form-grid">
-        <label>生活口座の現在残高<input id="bankInput" type="number" min="0" inputmode="numeric"></label>
+        <label>生活口座のカオカネ残高<input id="bankInput" type="number" min="0" inputmode="numeric"></label>
         <button class="btn full" onclick="updateBank()">生活口座を更新</button>
         <div class="hr"></div>
         <label>家にある現金の現在残高<input id="cashInput" type="number" min="0" inputmode="numeric"></label>
@@ -354,6 +360,12 @@ textarea{min-height:86px;resize:vertical}
         <button class="btn secondary" style="flex:1" onclick="toggleThresholdEdit(false)">キャンセル</button>
         <button class="btn" style="flex:1" onclick="saveThreshold()">設定する</button>
       </div>
+    </div>
+
+    <div class="section-title" style="font-size:14px;margin-top:16px">支払い方法と残高の連動</div>
+    <div class="card">
+      <div class="note" style="margin-bottom:12px">支出を登録した時点で、どの残高から差し引くかを設定します。</div>
+      <div id="paymentMapList" class="mapping-list"></div>
     </div>
 
     <div class="card">
@@ -407,7 +419,7 @@ const ids = [
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
 'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
-'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows'
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList'
 ];
 const el = {};
 ids.forEach(id => el[id] = $(id));
@@ -420,7 +432,12 @@ const state = {
   get assets(){ try{return JSON.parse(localStorage.getItem('kaokane_assets')||'{"bank":0,"cash":0,"bankUpdated":null}')}catch{return {bank:0,cash:0,bankUpdated:null}} },
   set assets(v){ localStorage.setItem('kaokane_assets',JSON.stringify(v)) },
   get threshold(){ return Number(localStorage.getItem('kaokane_threshold')||10000) },
-  set threshold(v){ localStorage.setItem('kaokane_threshold',String(v)) }
+  set threshold(v){ localStorage.setItem('kaokane_threshold',String(v)) },
+  get paymentMap(){
+    const defaults={'現金':'cash','Amazonカード':'bank','dカード':'bank','PayPay':'bank','イオンカード':'bank','d払い':'bank','銀行口座':'bank'};
+    try{return {...defaults,...JSON.parse(localStorage.getItem('kaokane_payment_map')||'{}')}}catch{return defaults}
+  },
+  set paymentMap(v){ localStorage.setItem('kaokane_payment_map',JSON.stringify(v)) }
 };
 
 let expenseType='必要', editExpenseType='必要', historyFilter='all', historyKind='expense', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set();
@@ -477,9 +494,7 @@ el.expenseForm.addEventListener('submit',e=>{
     date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,createdAt:new Date().toISOString(), splits:getSplitData(false)};
   const xs=state.expenses; xs.push(item); state.expenses=xs;
 
-  if(item.payment==='現金'){
-    const a=state.assets; a.cash=Math.max(0,Number(a.cash||0)-amt); state.assets=a;
-  }
+  applyExpenseBalance(item.payment,amt,-1);
   el.expenseForm.reset(); el.date.value=today(); pickType('必要'); clearSplitRows(false); el.splitEditor.classList.add('hidden'); render(); go('home');
 });
 
@@ -491,6 +506,7 @@ el.incomeForm.addEventListener('submit',e=>{
   xs.push({id:uid(),amount:amt,category:el.incomeCategory.value,date:el.incomeDate.value||today(),
     memo:el.incomeMemo.value.trim(),createdAt:new Date().toISOString()});
   state.incomes=xs;
+  applyIncomeBalance(amt);
   el.incomeForm.reset(); el.incomeDate.value=today(); render(); go('home');
 });
 
@@ -507,9 +523,8 @@ el.editExpenseForm.addEventListener('submit',e=>{
   const mem=el.editMemo.value.trim();
   if(amt>=state.threshold && !mem){ alert('高額支出はメモ必須です。何を購入したか入力してください。'); return; }
 
-  // Undo the old cash effect first.
-  const a=state.assets;
-  if(old.payment==='現金') a.cash=Number(a.cash||0)+Number(old.amount||0);
+  // Undo old balance effect first.
+  applyExpenseBalance(old.payment,old.amount,+1);
 
   const updated={
     ...old, amount:amt, category:el.editCategory.value, type:editExpenseType, payment:el.editPayment.value,
@@ -517,9 +532,8 @@ el.editExpenseForm.addEventListener('submit',e=>{
     updatedAt:new Date().toISOString(), splits:getSplitData(true)
   };
 
-  // Apply the new cash effect.
-  if(updated.payment==='現金') a.cash=Math.max(0,Number(a.cash||0)-amt);
-  state.assets=a;
+  // Apply the edited balance effect.
+  applyExpenseBalance(updated.payment,amt,-1);
 
   xs[i]=updated; state.expenses=xs;
   render(); go('history');
@@ -549,9 +563,7 @@ function deleteCurrentExpense(){
   const x=xs[i];
   if(!confirm(`${yen(x.amount)} の支出を削除しますか？`)) return;
 
-  if(x.payment==='現金'){
-    const a=state.assets; a.cash=Number(a.cash||0)+Number(x.amount||0); state.assets=a;
-  }
+  applyExpenseBalance(x.payment,x.amount,+1);
   xs.splice(i,1); state.expenses=xs;
   render(); go('history');
 }
@@ -572,7 +584,7 @@ function finishArcade(){
   xs.push({id:uid(),amount:arcadeSum,category:'交際費',type:'娯楽',payment:'現金',date:today(),
     memo:'ゲームセンター',approx:false,unorganized:false,createdAt:new Date().toISOString()});
   state.expenses=xs;
-  const a=state.assets; a.cash=Math.max(0,Number(a.cash||0)-arcadeSum); state.assets=a;
+  applyExpenseBalance('現金',arcadeSum,-1);
   arcadeSum=0; go('home');
 }
 function cancelArcade(){ arcadeSum=0; go('home'); }
@@ -604,6 +616,44 @@ function resetAllData(){
 
 
 
+
+function assetTargetForPayment(payment){
+  return state.paymentMap[payment] || 'none';
+}
+function applyExpenseBalance(payment,amount,direction=-1){
+  const target=assetTargetForPayment(payment);
+  if(target==='none') return;
+  const a=state.assets;
+  if(target==='cash') a.cash=Math.max(0,Number(a.cash||0)+(direction*Number(amount||0)));
+  if(target==='bank') a.bank=Math.max(0,Number(a.bank||0)+(direction*Number(amount||0)));
+  state.assets=a;
+}
+function applyIncomeBalance(amount){
+  const a=state.assets;
+  a.bank=Number(a.bank||0)+Number(amount||0);
+  state.assets=a;
+}
+function renderPaymentMap(){
+  if(!el.paymentMapList) return;
+  const map=state.paymentMap;
+  el.paymentMapList.innerHTML=payments.map(p=>`
+    <div class="mapping-row">
+      <div>
+        <div class="mapping-name">${esc(p)}</div>
+        <div class="asset-hint">${p==='現金'?'現金残高':p==='銀行口座'?'生活口座':'支出登録時に指定残高を減算'}</div>
+      </div>
+      <select onchange="savePaymentMap('${esc(p)}',this.value)">
+        <option value="bank" ${map[p]==='bank'?'selected':''}>生活口座</option>
+        <option value="cash" ${map[p]==='cash'?'selected':''}>現金</option>
+        <option value="none" ${map[p]==='none'?'selected':''}>連動しない</option>
+      </select>
+    </div>`).join('');
+}
+function savePaymentMap(payment,target){
+  const map=state.paymentMap;
+  map[payment]=target;
+  state.paymentMap=map;
+}
 function toggleThresholdEdit(force){
   const show=typeof force==='boolean'?force:el.thresholdEditPanel.classList.contains('hidden');
   el.thresholdEditPanel.classList.toggle('hidden',!show);
@@ -701,13 +751,7 @@ function bulkDelete(){
 
   const xs=state.expenses;
   const deleting=xs.filter(x=>selectedExpenseIds.has(x.id));
-  const cashBack=deleting.filter(x=>x.payment==='現金').reduce((s,x)=>s+Number(x.amount||0),0);
-
-  if(cashBack>0){
-    const a=state.assets;
-    a.cash=Number(a.cash||0)+cashBack;
-    state.assets=a;
-  }
+  deleting.forEach(x=>applyExpenseBalance(x.payment,x.amount,+1));
 
   state.expenses=xs.filter(x=>!selectedExpenseIds.has(x.id));
   selectedExpenseIds.clear();
@@ -779,7 +823,7 @@ function renderAssets(){
   el.bankValue.textContent=yen(a.bank);
   el.cashValue.textContent=yen(a.cash);
   el.assetTotal.textContent=yen(Number(a.bank||0)+Number(a.cash||0));
-  el.bankUpdated.textContent=a.bankUpdated?`最終更新 ${a.bankUpdated}`:'未更新';
+  el.bankUpdated.textContent=a.bankUpdated?`最終補正 ${a.bankUpdated}`:'カオカネ残高';
 }
 
 function render(){
@@ -830,12 +874,12 @@ function render(){
       <button class="settle-btn" onclick="markSplitSettled('${esc(u.expense.id)}',${u.index})">受取済</button>
     </div>`).join('');
 
-  renderHistory(); renderAssets();
+  renderHistory(); renderAssets(); renderPaymentMap();
 }
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap
 });
 
 try{
@@ -854,7 +898,7 @@ try{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.6', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.7', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
