@@ -51,7 +51,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function setup(){
-  if(el.editIncomeCategory) el.editIncomeCategory.innerHTML=incomeCats.map(c=>`<option>${esc(c)}</option>`).join('');
+  if(el.editIncomeCategory) el.editIncomeCategory.innerHTML=incomeCategories.map(c=>`<option>${esc(c)}</option>`).join('');
   if(el.editIncomeForm) el.editIncomeForm.addEventListener('submit',saveIncomeEdit);
   el.category.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.payment.innerHTML=payments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
@@ -875,7 +875,7 @@ function openIncomeEdit(id){
   const x=state.incomes.find(i=>i.id===id);if(!x)return;
   editingIncomeId=id;
   el.editIncomeAmount.value=x.amount||'';
-  el.editIncomeCategory.value=x.category||incomeCats[0]||'給与';
+  el.editIncomeCategory.value=x.category||incomeCategories[0]||'給与';
   el.editIncomeDate.value=x.date||today();
   el.editIncomeMemo.value=x.memo||'';
   go('editIncome');
