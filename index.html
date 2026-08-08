@@ -88,7 +88,7 @@ textarea{min-height:86px;resize:vertical}
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.1</div>
+    <div class="badge">v0.3</div>
   </div>
 
   <section id="home" class="screen active">
@@ -182,6 +182,44 @@ textarea{min-height:86px;resize:vertical}
     </div>
   </section>
 
+
+  <section id="edit" class="screen">
+    <div class="section-title">支出を編集</div>
+    <div class="card">
+      <form id="editExpenseForm" class="form-grid">
+        <input id="editId" type="hidden">
+        <label>金額
+          <input id="editAmount" type="number" min="1" inputmode="numeric" required>
+        </label>
+        <label>カテゴリ
+          <select id="editCategory"></select>
+        </label>
+        <label>必要 / 娯楽
+          <div class="segment">
+            <button type="button" id="editNeedBtn" class="selected" onclick="pickEditType('必要')">必要</button>
+            <button type="button" id="editFunBtn" onclick="pickEditType('娯楽')">娯楽</button>
+          </div>
+        </label>
+        <label>支払い方法
+          <select id="editPayment"></select>
+        </label>
+        <label>日付
+          <input id="editDate" type="date" required>
+        </label>
+        <label>メモ
+          <textarea id="editMemo" placeholder="任意。高額支出では必須です"></textarea>
+        </label>
+        <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
+          <input id="editApprox" type="checkbox" style="width:auto"> 概算として記録
+        </label>
+        <div id="editHighWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
+        <button class="btn full" type="submit">変更を保存</button>
+        <button class="btn danger full" type="button" onclick="deleteCurrentExpense()">この支出を削除</button>
+        <button class="btn ghost full" type="button" onclick="go('history')">キャンセル</button>
+      </form>
+    </div>
+  </section>
+
   <section id="assets" class="screen">
     <div class="section-title">生活資産</div>
     <div class="card">
@@ -226,6 +264,14 @@ textarea{min-height:86px;resize:vertical}
         本格運用前にバックアップ機能を追加する予定です。
       </div>
     </div>
+
+    <div class="card danger-card">
+      <div class="kicker danger">データ管理</div>
+      <div class="note" style="margin-top:8px">
+        テストデータを消したい場合などに使用します。実行すると、このiPhone内のカオカネの支出・収入・資産データがすべて削除されます。
+      </div>
+      <button class="btn danger full" style="margin-top:12px" onclick="resetAllData()">すべてのデータを初期化</button>
+    </div>
   </section>
 
   <section id="arcade" class="screen">
@@ -260,14 +306,16 @@ const categories = ['食費','外食','住居','通信費','交通費','車','�
 const payments = ['現金','Amazonカード','dカード','PayPay','イオンカード','d払い','銀行口座'];
 const incomeCategories = ['給与','賞与','臨時収入','返金','その他'];
 
-const el = {};
-[
+const ids = [
 'monthLabel','monthSpend','needSpend','funSpend','compareText','unorganizedCard','unorganizedText',
 'highCard','highList','recentList','historyList','histAllBtn','histHighBtn','expenseForm','amount',
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
-'cashInput','thresholdInput','arcadeTotal'
-].forEach(id => el[id] = $(id));
+'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn'
+];
+const el = {};
+ids.forEach(id => el[id] = $(id));
 
 const state = {
   get expenses(){ try{return JSON.parse(localStorage.getItem('kaokane_expenses')||'[]')}catch{return []} },
@@ -280,18 +328,19 @@ const state = {
   set threshold(v){ localStorage.setItem('kaokane_threshold',String(v)) }
 };
 
-let expenseType='必要', historyFilter='all', arcadeSum=0;
+let expenseType='必要', editExpenseType='必要', historyFilter='all', arcadeSum=0;
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const today=()=>{ const d=new Date(); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function setup(){
-  el.category.innerHTML=categories.map(x=>`<option value="${x}">${x}</option>`).join('');
-  el.payment.innerHTML=payments.map(x=>`<option value="${x}">${x}</option>`).join('');
-  el.incomeCategory.innerHTML=incomeCategories.map(x=>`<option value="${x}">${x}</option>`).join('');
-  el.date.value=today();
-  el.incomeDate.value=today();
-  el.thresholdInput.value=state.threshold;
+  el.category.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  el.payment.innerHTML=payments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  el.incomeCategory.innerHTML=incomeCategories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  el.editCategory.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  el.editPayment.innerHTML=payments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  el.date.value=today(); el.incomeDate.value=today(); el.thresholdInput.value=state.threshold;
   render();
 }
 
@@ -299,8 +348,9 @@ function go(id){
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   const target=$(id); if(target) target.classList.add('active');
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.go===id));
-  if(id==='arcade') document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  if(id==='arcade' || id==='edit') document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   render();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function pickType(v){
@@ -308,9 +358,17 @@ function pickType(v){
   el.needBtn.classList.toggle('selected',v==='必要');
   el.funBtn.classList.toggle('selected',v==='娯楽');
 }
+function pickEditType(v){
+  editExpenseType=v;
+  el.editNeedBtn.classList.toggle('selected',v==='必要');
+  el.editFunBtn.classList.toggle('selected',v==='娯楽');
+}
 
 el.amount.addEventListener('input',()=>{
   el.highWarn.classList.toggle('hidden', Number(el.amount.value||0) < state.threshold);
+});
+el.editAmount.addEventListener('input',()=>{
+  el.editHighWarn.classList.toggle('hidden', Number(el.editAmount.value||0) < state.threshold);
 });
 
 el.expenseForm.addEventListener('submit',e=>{
@@ -318,24 +376,16 @@ el.expenseForm.addEventListener('submit',e=>{
   const amt=Number(el.amount.value);
   if(!amt || amt<=0){ alert('金額を入力してください。'); return; }
   const mem=el.memo.value.trim();
-  if(amt>=state.threshold && !mem){
-    alert('高額支出はメモ必須です。何を購入したか入力してください。');
-    return;
-  }
-  const item={
-    id:uid(),amount:amt,category:el.category.value,type:expenseType,payment:el.payment.value,
-    date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,
-    createdAt:new Date().toISOString()
-  };
+  if(amt>=state.threshold && !mem){ alert('高額支出はメモ必須です。何を購入したか入力してください。'); return; }
+
+  const item={id:uid(),amount:amt,category:el.category.value,type:expenseType,payment:el.payment.value,
+    date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,createdAt:new Date().toISOString()};
   const xs=state.expenses; xs.push(item); state.expenses=xs;
+
   if(item.payment==='現金'){
     const a=state.assets; a.cash=Math.max(0,Number(a.cash||0)-amt); state.assets=a;
   }
-  el.expenseForm.reset();
-  el.date.value=today();
-  pickType('必要');
-  render();
-  go('home');
+  el.expenseForm.reset(); el.date.value=today(); pickType('必要'); render(); go('home');
 });
 
 el.incomeForm.addEventListener('submit',e=>{
@@ -346,10 +396,69 @@ el.incomeForm.addEventListener('submit',e=>{
   xs.push({id:uid(),amount:amt,category:el.incomeCategory.value,date:el.incomeDate.value||today(),
     memo:el.incomeMemo.value.trim(),createdAt:new Date().toISOString()});
   state.incomes=xs;
-  el.incomeForm.reset();
-  el.incomeDate.value=today();
-  render(); go('home');
+  el.incomeForm.reset(); el.incomeDate.value=today(); render(); go('home');
 });
+
+el.editExpenseForm.addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=el.editId.value;
+  const xs=state.expenses;
+  const i=xs.findIndex(x=>x.id===id);
+  if(i<0){ alert('支出が見つかりません。'); go('history'); return; }
+
+  const old=xs[i];
+  const amt=Number(el.editAmount.value);
+  if(!amt || amt<=0){ alert('金額を入力してください。'); return; }
+  const mem=el.editMemo.value.trim();
+  if(amt>=state.threshold && !mem){ alert('高額支出はメモ必須です。何を購入したか入力してください。'); return; }
+
+  // Undo the old cash effect first.
+  const a=state.assets;
+  if(old.payment==='現金') a.cash=Number(a.cash||0)+Number(old.amount||0);
+
+  const updated={
+    ...old, amount:amt, category:el.editCategory.value, type:editExpenseType, payment:el.editPayment.value,
+    date:el.editDate.value||today(), memo:mem, approx:el.editApprox.checked, unorganized:false,
+    updatedAt:new Date().toISOString()
+  };
+
+  // Apply the new cash effect.
+  if(updated.payment==='現金') a.cash=Math.max(0,Number(a.cash||0)-amt);
+  state.assets=a;
+
+  xs[i]=updated; state.expenses=xs;
+  render(); go('history');
+});
+
+function openEdit(id){
+  const x=state.expenses.find(v=>v.id===id);
+  if(!x) return;
+  el.editId.value=x.id;
+  el.editAmount.value=x.amount;
+  el.editCategory.value=categories.includes(x.category)?x.category:'その他';
+  pickEditType(x.type==='娯楽'?'娯楽':'必要');
+  el.editPayment.value=payments.includes(x.payment)?x.payment:'現金';
+  el.editDate.value=x.date||today();
+  el.editMemo.value=x.memo||'';
+  el.editApprox.checked=!!x.approx;
+  el.editHighWarn.classList.toggle('hidden',Number(x.amount||0)<state.threshold);
+  go('edit');
+}
+
+function deleteCurrentExpense(){
+  const id=el.editId.value;
+  const xs=state.expenses;
+  const i=xs.findIndex(x=>x.id===id);
+  if(i<0) return;
+  const x=xs[i];
+  if(!confirm(`${yen(x.amount)} の支出を削除しますか？`)) return;
+
+  if(x.payment==='現金'){
+    const a=state.assets; a.cash=Number(a.cash||0)+Number(x.amount||0); state.assets=a;
+  }
+  xs.splice(i,1); state.expenses=xs;
+  render(); go('history');
+}
 
 function quickAmount(amt){
   const xs=state.expenses;
@@ -384,6 +493,14 @@ function saveThreshold(){
   state.threshold=Math.max(1000,Number(el.thresholdInput.value||10000));
   el.thresholdInput.value=state.threshold; render(); alert('保存しました');
 }
+function resetAllData(){
+  if(!confirm('カオカネの支出・収入・資産データをすべて削除します。元に戻せません。実行しますか？')) return;
+  if(!confirm('本当に初期化しますか？')) return;
+  ['kaokane_expenses','kaokane_incomes','kaokane_assets'].forEach(k=>localStorage.removeItem(k));
+  render();
+  alert('データを初期化しました。');
+  go('home');
+}
 
 function isThisMonth(d){
   const x=new Date(d+'T00:00:00'), n=new Date();
@@ -401,15 +518,20 @@ function itemHTML(x){
     x.unorganized?'<span class="pill danger">未整理</span>':'',
     x.approx?'<span class="pill">概算</span>':''
   ].join(' ');
-  const sub=[x.date,x.category,x.type,x.payment,x.memo].filter(Boolean).join(' · ');
-  return `<div class="item"><div class="item-main"><div class="item-title">${flags||x.category||'支出'}</div>
-  <div class="item-sub">${sub}</div></div><div class="item-amount">${yen(x.amount)}</div></div>`;
+  const sub=[x.date,x.category,x.type,x.payment,x.memo].filter(Boolean).map(esc).join(' · ');
+  return `<div class="item" onclick="openEdit('${esc(x.id)}')" style="cursor:pointer">
+    <div class="item-main">
+      <div class="item-title">${flags||esc(x.category)||'支出'}</div>
+      <div class="item-sub">${sub}</div>
+    </div>
+    <div class="item-amount">${yen(x.amount)}</div>
+  </div>`;
 }
 
 function renderHistory(){
   el.histAllBtn.classList.toggle('active',historyFilter==='all');
   el.histHighBtn.classList.toggle('active',historyFilter==='high');
-  let xs=[...state.expenses].sort((a,b)=>(b.date+b.createdAt).localeCompare(a.date+a.createdAt));
+  let xs=[...state.expenses].sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
   if(historyFilter==='high') xs=xs.filter(x=>x.amount>=state.threshold);
   el.historyList.innerHTML=xs.map(itemHTML).join('')||'<div class="empty">該当する支出はありません。</div>';
 }
@@ -434,27 +556,28 @@ function render(){
 
   const prev=xs.filter(x=>isLastMonthToSameDay(x.date)&&!x.unorganized).reduce((s,x)=>s+x.amount,0);
   const diff=sum-prev;
-  el.compareText.textContent=prev===0
-    ? '先月同時期のデータがまだありません'
+  el.compareText.textContent=prev===0 ? '先月同時期のデータがまだありません'
     : `先月同時期より ${diff===0?'±¥0':(diff>0?'+':'−')+yen(Math.abs(diff))}`;
 
   const un=xs.filter(x=>x.unorganized);
   el.unorganizedCard.classList.toggle('hidden',un.length===0);
-  el.unorganizedText.textContent=un.length?`${un.length}件あります。あとでカテゴリ等を整理してください。`:'';
+  el.unorganizedText.textContent=un.length?`${un.length}件あります。タップして内容を完成させてください。`:'';
 
   const high=month.filter(x=>x.amount>=state.threshold).sort((a,b)=>b.amount-a.amount);
   el.highCard.classList.toggle('hidden',high.length===0);
   el.highList.innerHTML=high.slice(0,4).map(itemHTML).join('');
 
   el.recentList.innerHTML=xs.filter(x=>!x.unorganized)
-    .sort((a,b)=>(b.date+b.createdAt).localeCompare(a.date+a.createdAt))
+    .sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')))
     .slice(0,6).map(itemHTML).join('')||'<div class="empty">まだ支出がありません。</div>';
 
   renderHistory(); renderAssets();
 }
 
-// Expose functions used by inline buttons.
-Object.assign(window,{go,pickType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,updateBank,updateCash,saveThreshold});
+Object.assign(window,{
+  go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData
+});
 
 try{
   localStorage.setItem('kaokane_test','ok');
