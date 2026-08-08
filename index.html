@@ -123,13 +123,28 @@ textarea{min-height:86px;resize:vertical}
 .mapping-name{font-weight:800}
 .mapping-row select{padding:10px}
 .asset-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.45}
+
+input[type="date"]{
+  min-height:46px;
+  height:46px;
+  line-height:22px;
+  padding:11px 12px;
+  -webkit-appearance:none;
+  appearance:none;
+}
+
+.analytics-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px}
+.analytics-tabs button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px;font-size:12px;font-weight:800}
+.analytics-tabs button.active{background:#111;color:#fff}
+.chart-wrap{width:100%;overflow:hidden;background:#fafafa;border:1px solid var(--line);border-radius:14px;padding:8px}
+.chart-wrap canvas{display:block;width:100%;height:auto}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.8</div>
+    <div class="badge">v0.9</div>
   </div>
 
   <section id="home" class="screen active">
@@ -229,7 +244,6 @@ textarea{min-height:86px;resize:vertical}
         </label>
         <label>メモ
           <textarea id="memo" placeholder="任意。しかし、高額支出では必須。"></textarea>
-          <span class="note">任意。しかし、高額支出では必須。</span>
         </label>
         <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
           <input id="approx" type="checkbox" style="width:auto"> 概算として記録
@@ -285,7 +299,6 @@ textarea{min-height:86px;resize:vertical}
         </label>
         <label>メモ
           <textarea id="editMemo" placeholder="任意。しかし、高額支出では必須。"></textarea>
-          <span class="note">任意。しかし、高額支出では必須。</span>
         </label>
         <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
           <input id="editApprox" type="checkbox" style="width:auto"> 概算として記録
@@ -319,6 +332,27 @@ textarea{min-height:86px;resize:vertical}
         <div><div class="asset-name">現金</div><div class="asset-sub">現金支出で自動減算</div></div>
         <div class="asset-value" id="cashValue">¥0</div>
       </div>
+    </div>
+
+    <div class="compact-setting-card">
+      <div>
+        <div class="kicker">分析</div>
+        <div class="note">収入・支出・残高の推移</div>
+      </div>
+      <button class="mini-action" onclick="toggleAnalytics()">グラフを見る</button>
+    </div>
+
+    <div id="analyticsPanel" class="card hidden">
+      <div class="analytics-tabs">
+        <button id="chartExpenseBtn" class="active" onclick="setChartMode('expense')">支出</button>
+        <button id="chartIncomeBtn" onclick="setChartMode('income')">収入</button>
+        <button id="chartBalanceBtn" onclick="setChartMode('balance')">残高</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="financeChart" width="640" height="340"></canvas>
+      </div>
+      <div class="note" id="chartNote" style="margin-top:8px"></div>
+      <button class="btn secondary full" style="margin-top:12px" onclick="toggleAnalytics(false)">閉じる</button>
     </div>
 
     <div class="compact-setting-card">
@@ -364,10 +398,17 @@ textarea{min-height:86px;resize:vertical}
       </div>
     </div>
 
-    <div class="section-title" style="font-size:14px;margin-top:16px">支払い方法と残高の連動</div>
-    <div class="card">
+    <div class="compact-setting-card">
+      <div>
+        <div class="kicker">支払い方法と残高の連動</div>
+        <div class="note">通常は変更不要</div>
+      </div>
+      <button class="mini-action" onclick="togglePaymentMapPanel()">設定変更</button>
+    </div>
+    <div id="paymentMapPanel" class="card hidden">
       <div class="note" style="margin-bottom:12px">支出を登録した時点で、どの残高から差し引くかを設定します。</div>
       <div id="paymentMapList" class="mapping-list"></div>
+      <button class="btn secondary full" style="margin-top:12px" onclick="togglePaymentMapPanel(false)">閉じる</button>
     </div>
 
     <div class="card">
@@ -421,7 +462,7 @@ const ids = [
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
 'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
-'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList'
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList','paymentMapPanel','analyticsPanel','financeChart','chartExpenseBtn','chartIncomeBtn','chartBalanceBtn','chartNote'
 ];
 const el = {};
 ids.forEach(id => el[id] = $(id));
@@ -439,10 +480,12 @@ const state = {
     const defaults={'現金':'cash','Amazonカード':'bank','dカード':'bank','PayPay':'bank','イオンカード':'bank','d払い':'bank','銀行口座':'bank','その他':'none'};
     try{return {...defaults,...JSON.parse(localStorage.getItem('kaokane_payment_map')||'{}')}}catch{return defaults}
   },
-  set paymentMap(v){ localStorage.setItem('kaokane_payment_map',JSON.stringify(v)) }
+  set paymentMap(v){ localStorage.setItem('kaokane_payment_map',JSON.stringify(v)) },
+  get balanceHistory(){ try{return JSON.parse(localStorage.getItem('kaokane_balance_history')||'[]')}catch{return []} },
+  set balanceHistory(v){ localStorage.setItem('kaokane_balance_history',JSON.stringify(v)) }
 };
 
-let expenseType='必要', editExpenseType='必要', historyFilter='all', historyKind='expense', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set();
+let expenseType='必要', editExpenseType='必要', historyFilter='all', historyKind='expense', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set(), chartMode='expense';
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const today=()=>{ const d=new Date(); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -455,6 +498,8 @@ function setup(){
   el.editCategory.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.editPayment.innerHTML=payments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.date.value=today(); el.incomeDate.value=today(); el.thresholdInput.value=state.threshold; el.thresholdDisplay.textContent=yen(state.threshold);
+  migrateDataSafely();
+  if(state.balanceHistory.length===0) recordBalanceSnapshot('manual');
   const resumeArcade=restoreArcadeSession();
   render();
   if(resumeArcade) setTimeout(()=>go('arcade'),80);
@@ -641,11 +686,11 @@ function cancelArcade(){
 
 function updateBank(){
   const a=state.assets; a.bank=Number(el.bankInput.value||0); a.bankUpdated=today(); state.assets=a;
-  el.bankInput.value=''; renderAssets(); toggleBalanceAdjust(false);
+  el.bankInput.value=''; recordBalanceSnapshot('manual'); renderAssets(); toggleBalanceAdjust(false);
 }
 function updateCash(){
   const a=state.assets; a.cash=Number(el.cashInput.value||0); state.assets=a;
-  el.cashInput.value=''; renderAssets(); toggleBalanceAdjust(false);
+  el.cashInput.value=''; recordBalanceSnapshot('manual'); renderAssets(); toggleBalanceAdjust(false);
 }
 function saveThreshold(){
   state.threshold=Math.max(1000,Number(el.thresholdInput.value||10000));
@@ -677,11 +722,13 @@ function applyExpenseBalance(payment,amount,direction=-1){
   if(target==='cash') a.cash=Math.max(0,Number(a.cash||0)+(direction*Number(amount||0)));
   if(target==='bank') a.bank=Math.max(0,Number(a.bank||0)+(direction*Number(amount||0)));
   state.assets=a;
+  recordBalanceSnapshot('auto');
 }
 function applyIncomeBalance(amount){
   const a=state.assets;
   a.bank=Number(a.bank||0)+Number(amount||0);
   state.assets=a;
+  recordBalanceSnapshot('auto');
 }
 function renderPaymentMap(){
   if(!el.paymentMapList) return;
@@ -703,6 +750,162 @@ function savePaymentMap(payment,target){
   const map=state.paymentMap;
   map[payment]=target;
   state.paymentMap=map;
+}
+
+function migrateDataSafely(){
+  // Never delete user data during an app update.
+  // Only add missing fields/defaults so older saved records remain valid.
+  const xs=state.expenses;
+  let changed=false;
+  xs.forEach(x=>{
+    if(!Array.isArray(x.splits)){x.splits=[];changed=true;}
+    if(typeof x.approx!=='boolean'){x.approx=false;changed=true;}
+    if(typeof x.unorganized!=='boolean'){x.unorganized=false;changed=true;}
+  });
+  if(changed) state.expenses=xs;
+
+  const inc=state.incomes;
+  let incChanged=false;
+  inc.forEach(x=>{
+    if(!x.id){x.id=uid();incChanged=true;}
+    if(!x.createdAt){x.createdAt=new Date((x.date||today())+'T12:00:00').toISOString();incChanged=true;}
+  });
+  if(incChanged) state.incomes=inc;
+}
+function recordBalanceSnapshot(reason='auto'){
+  const a=state.assets;
+  const arr=state.balanceHistory;
+  arr.push({date:today(),bank:Number(a.bank||0),cash:Number(a.cash||0),total:Number(a.bank||0)+Number(a.cash||0),reason,ts:new Date().toISOString()});
+  // Keep one latest snapshot per calendar day for ordinary auto updates, while preserving manual snapshots.
+  const byDate=new Map();
+  arr.forEach(x=>{
+    const key=x.date+'|'+(x.reason==='manual'?'manual':'auto');
+    byDate.set(key,x);
+  });
+  state.balanceHistory=[...byDate.values()].sort((a,b)=>(a.ts||'').localeCompare(b.ts||'')).slice(-800);
+}
+function togglePaymentMapPanel(force){
+  const show=typeof force==='boolean'?force:el.paymentMapPanel.classList.contains('hidden');
+  el.paymentMapPanel.classList.toggle('hidden',!show);
+  if(show) renderPaymentMap();
+}
+function toggleAnalytics(force){
+  const show=typeof force==='boolean'?force:el.analyticsPanel.classList.contains('hidden');
+  el.analyticsPanel.classList.toggle('hidden',!show);
+  if(show) setTimeout(renderFinanceChart,60);
+}
+function setChartMode(mode){
+  chartMode=mode;
+  el.chartExpenseBtn.classList.toggle('active',mode==='expense');
+  el.chartIncomeBtn.classList.toggle('active',mode==='income');
+  el.chartBalanceBtn.classList.toggle('active',mode==='balance');
+  renderFinanceChart();
+}
+function monthKey(d){
+  return String(d||'').slice(0,7);
+}
+function recentMonthKeys(count=6){
+  const now=new Date();
+  const arr=[];
+  for(let i=count-1;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    arr.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  return arr;
+}
+function renderFinanceChart(){
+  const canvas=el.financeChart;
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#fafafa';ctx.fillRect(0,0,W,H);
+
+  const months=recentMonthKeys(6);
+  let values=[];
+  let note='';
+
+  if(chartMode==='expense'){
+    values=months.map(m=>state.expenses.filter(x=>!x.unorganized && monthKey(x.date)===m).reduce((s,x)=>s+effectiveExpenseAmount(x),0));
+    note='月ごとの実質支出（受取済の立替返金分を除外）';
+  }else if(chartMode==='income'){
+    values=months.map(m=>state.incomes.filter(x=>monthKey(x.date)===m).reduce((s,x)=>s+Number(x.amount||0),0));
+    note='月ごとの収入';
+  }else{
+    const hist=state.balanceHistory;
+    values=months.map(m=>{
+      const candidates=hist.filter(x=>monthKey(x.date)===m);
+      if(candidates.length) return Number(candidates[candidates.length-1].total||0);
+      return null;
+    });
+    // If current month has no snapshot, use current assets.
+    const current=monthKey(today());
+    const idx=months.indexOf(current);
+    if(idx>=0 && values[idx]==null){
+      const a=state.assets;values[idx]=Number(a.bank||0)+Number(a.cash||0);
+    }
+    note='各月で最後に記録された生活資産残高';
+  }
+  el.chartNote.textContent=note;
+
+  const numeric=values.filter(v=>v!=null);
+  const max=Math.max(1,...numeric);
+  const min=chartMode==='balance' && numeric.length?Math.min(...numeric):0;
+  const padL=76,padR=24,padT=28,padB=54;
+  const gw=W-padL-padR, gh=H-padT-padB;
+
+  // axes/grid
+  ctx.strokeStyle='#dddddd';ctx.lineWidth=1;
+  ctx.fillStyle='#777';ctx.font='18px -apple-system, sans-serif';
+  ctx.textAlign='right';
+  for(let i=0;i<=4;i++){
+    const y=padT+gh*i/4;
+    ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
+    const val=max-(max-min)*i/4;
+    ctx.fillText('¥'+Math.round(val).toLocaleString('ja-JP'),padL-10,y+6);
+  }
+
+  ctx.textAlign='center';
+  months.forEach((m,i)=>{
+    const x=padL+(gw*(i+.5)/months.length);
+    ctx.fillStyle='#777';
+    ctx.fillText(Number(m.slice(5))+'月',x,H-22);
+  });
+
+  if(chartMode==='balance'){
+    ctx.strokeStyle='#111';ctx.lineWidth=5;ctx.lineJoin='round';ctx.lineCap='round';
+    let started=false;
+    ctx.beginPath();
+    values.forEach((v,i)=>{
+      if(v==null) return;
+      const x=padL+(gw*(i+.5)/months.length);
+      const y=padT+gh*(max-v)/(Math.max(1,max-min));
+      if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    values.forEach((v,i)=>{
+      if(v==null)return;
+      const x=padL+(gw*(i+.5)/months.length);
+      const y=padT+gh*(max-v)/(Math.max(1,max-min));
+      ctx.fillStyle='#d96b62';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
+    });
+  }else{
+    const bw=gw/months.length*0.54;
+    values.forEach((v,i)=>{
+      const x=padL+(gw*(i+.5)/months.length)-bw/2;
+      const h=gh*(v/max);
+      ctx.fillStyle='#303030';
+      ctx.beginPath();
+      const y=padT+gh-h;
+      const r=8;
+      ctx.roundRect(x,y,bw,h,r);
+      ctx.fill();
+      if(v>0){
+        ctx.fillStyle='#333';ctx.font='16px -apple-system, sans-serif';ctx.textAlign='center';
+        ctx.fillText('¥'+Number(v).toLocaleString('ja-JP'),x+bw/2,Math.max(18,y-8));
+      }
+    });
+  }
 }
 function toggleThresholdEdit(force){
   const show=typeof force==='boolean'?force:el.thresholdEditPanel.classList.contains('hidden');
@@ -957,7 +1160,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode
 });
 
 try{
@@ -976,7 +1179,7 @@ try{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.8', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.9', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
