@@ -96,13 +96,34 @@ textarea{min-height:86px;resize:vertical}
 .danger-zone{margin:28px 4px 8px;padding-top:18px;border-top:1px solid var(--line)}
 .reset-link{border:0;background:none;padding:3px 0;color:#8b8b8b;font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .reset-link:active{color:var(--danger)}
+
+.add-nav{display:flex!important;align-items:center;justify-content:center;padding:2px!important}
+.nav .plus{display:grid!important;place-items:center!important;line-height:1!important;margin:0 auto!important;font-size:28px!important}
+.history-head{display:flex;align-items:center;justify-content:space-between;margin:20px 2px 12px}
+.mini-action{border:1px solid var(--line);background:#fff;color:#111;border-radius:10px;padding:8px 11px;font-size:12px;font-weight:800}
+.history-main-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.history-main-tabs button,.history-sub-tabs button{padding:11px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:800}
+.history-main-tabs button.active{background:#111;color:#fff}
+.history-sub-tabs{display:flex;gap:8px;margin-bottom:12px}
+.history-sub-tabs button{padding:8px 12px;font-size:12px}
+.history-sub-tabs button.active{background:#ececec;border-color:#d2d2d2}
+.compact-setting-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.compact-value{font-size:22px;font-weight:850;margin-top:4px}
+.inline-toggle{border:0;background:none;padding:6px 0;color:#111;font-weight:850;text-align:left}
+.split-rows{display:grid;gap:8px;margin-bottom:10px}
+.split-row{display:grid;grid-template-columns:1.35fr 1fr auto;gap:7px;align-items:center}
+.split-row input{padding:10px}
+.split-remove{border:0;background:#f1f1f1;width:38px;height:38px;border-radius:10px;font-size:18px}
+.unsettled-name{font-weight:800}
+.unsettled-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.settle-btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 8px;font-size:11px;font-weight:800}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.5</div>
+    <div class="badge">v0.6</div>
   </div>
 
   <section id="home" class="screen active">
@@ -134,21 +155,47 @@ textarea{min-height:86px;resize:vertical}
       <button class="btn ghost full" style="margin-top:12px" onclick="startArcade()">🎮 ゲーセンモード</button>
     </div>
 
+    <div class="section-title" id="incomeMonthTitle">今月の収入</div>
+    <div class="card">
+      <div class="row" style="align-items:end;margin-bottom:8px">
+        <div class="stat" style="padding:0">
+          <div class="label">合計</div>
+          <div class="value" id="homeIncomeTotal">¥0</div>
+        </div>
+      </div>
+      <div class="list" id="homeIncomeList"></div>
+    </div>
+
+    <div id="unsettledSection" class="hidden">
+      <div class="section-title">未精算の立替</div>
+      <div class="card"><div class="list" id="unsettledList"></div></div>
+    </div>
+
     <div class="section-title">最近の支出</div>
     <div class="card"><div class="list" id="recentList"></div></div>
   </section>
 
   <section id="history" class="screen">
-    <div class="section-title">履歴</div>
-    <div class="tabs">
+    <div class="history-head">
+      <div class="section-title" style="margin:0">履歴</div>
+      <button id="bulkModeBtn" class="mini-action hidden" onclick="toggleBulkMode()">複数選択</button>
+    </div>
+
+    <div class="history-main-tabs">
+      <button id="histExpenseBtn" class="active" onclick="setHistoryKind('expense')">支出</button>
+      <button id="histIncomeBtn" onclick="setHistoryKind('income')">収入</button>
+    </div>
+
+    <div id="expenseFilters" class="history-sub-tabs">
       <button id="histAllBtn" class="active" onclick="setHistoryFilter('all')">すべて</button>
       <button id="histHighBtn" onclick="setHistoryFilter('high')">高額支出</button>
     </div>
-    <div class="row" style="margin-bottom:12px">
-      <button id="bulkModeBtn" class="btn secondary" style="flex:1" onclick="toggleBulkMode()">複数選択</button>
-      <button id="bulkDeleteBtn" class="btn danger hidden" style="flex:1" onclick="bulkDelete()">選択した支出を削除</button>
+
+    <div id="bulkControls" class="hidden" style="margin-bottom:12px">
+      <div id="bulkInfo" class="notice" style="margin-bottom:8px">0件選択中</div>
+      <button id="bulkDeleteBtn" class="btn danger full" onclick="bulkDelete()">選択した支出を削除</button>
     </div>
-    <div id="bulkInfo" class="notice hidden" style="margin-bottom:12px">0件選択中</div>
+
     <div class="card"><div class="list" id="historyList"></div></div>
   </section>
 
@@ -180,6 +227,14 @@ textarea{min-height:86px;resize:vertical}
         <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
           <input id="approx" type="checkbox" style="width:auto"> 概算として記録
         </label>
+        <div class="hr"></div>
+        <button type="button" class="inline-toggle" id="splitToggleBtn" onclick="toggleSplitEditor()">立替・割り勘を記録</button>
+        <div id="splitEditor" class="hidden">
+          <div class="note" style="margin-bottom:10px">自分がまとめて払ったとき、誰からいくら受け取る予定か記録します。</div>
+          <div id="splitRows" class="split-rows"></div>
+          <button type="button" class="btn secondary full" onclick="addSplitRow()">＋ 人を追加</button>
+        </div>
+
         <div id="highWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
         <button class="btn full" type="submit">登録する</button>
       </form>
@@ -227,6 +282,14 @@ textarea{min-height:86px;resize:vertical}
         <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px">
           <input id="editApprox" type="checkbox" style="width:auto"> 概算として記録
         </label>
+        <div class="hr"></div>
+        <button type="button" class="inline-toggle" id="editSplitToggleBtn" onclick="toggleEditSplitEditor()">立替・割り勘を編集</button>
+        <div id="editSplitEditor" class="hidden">
+          <div class="note" style="margin-bottom:10px">未精算の相手と金額を編集できます。</div>
+          <div id="editSplitRows" class="split-rows"></div>
+          <button type="button" class="btn secondary full" onclick="addEditSplitRow()">＋ 人を追加</button>
+        </div>
+
         <div id="editHighWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
         <button class="btn full" type="submit">変更を保存</button>
         <button class="btn danger full" type="button" onclick="deleteCurrentExpense()">この支出を削除</button>
@@ -249,41 +312,54 @@ textarea{min-height:86px;resize:vertical}
         <div class="asset-value" id="cashValue">¥0</div>
       </div>
     </div>
-    <div class="card">
+
+    <div class="compact-setting-card">
+      <div>
+        <div class="kicker">残高の手動修正</div>
+        <div class="note">記録漏れや実残高との差があるときだけ使用</div>
+      </div>
+      <button class="mini-action" onclick="toggleBalanceAdjust()">残高を修正</button>
+    </div>
+
+    <div id="balanceAdjustPanel" class="card hidden">
       <div class="form-grid">
         <label>生活口座の現在残高<input id="bankInput" type="number" min="0" inputmode="numeric"></label>
         <button class="btn full" onclick="updateBank()">生活口座を更新</button>
         <div class="hr"></div>
         <label>家にある現金の現在残高<input id="cashInput" type="number" min="0" inputmode="numeric"></label>
         <button class="btn secondary full" onclick="updateCash()">現金残高を合わせる</button>
-        <div class="note">最初に現金残高を1度入力してください。その後は「現金」で支出を登録すると自動で減ります。</div>
       </div>
     </div>
   </section>
 
   <section id="settings" class="screen">
     <div class="section-title">設定</div>
-    <div class="card threshold-card">
-      <div class="settings-head">
-        <div>
-          <div class="kicker">HIGH SPEND ALERT</div>
-          <div class="settings-title">高額支出の基準</div>
-        </div>
-        <div class="settings-mark">!</div>
+
+    <div class="compact-setting-card">
+      <div>
+        <div class="kicker">高額支出の基準</div>
+        <div class="compact-value" id="thresholdDisplay">¥10,000</div>
       </div>
-      <div class="threshold-input-wrap">
+      <button class="mini-action" onclick="toggleThresholdEdit()">金額変更</button>
+    </div>
+
+    <div id="thresholdEditPanel" class="card hidden">
+      <div class="kicker">HIGH SPEND ALERT</div>
+      <div class="threshold-input-wrap" style="margin-top:10px">
         <span class="yen-prefix">¥</span>
         <input id="thresholdInput" class="threshold-input" type="number" min="1000" step="1000" inputmode="numeric">
       </div>
-      <div class="note">この金額以上の支出をホームで目立たせ、メモ入力を必須にします。</div>
-      <button class="btn full" style="margin-top:14px" onclick="saveThreshold()">設定する</button>
+      <div class="note">この金額以上の支出はホームで強調し、メモを必須にします。</div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn secondary" style="flex:1" onclick="toggleThresholdEdit(false)">キャンセル</button>
+        <button class="btn" style="flex:1" onclick="saveThreshold()">設定する</button>
+      </div>
     </div>
+
     <div class="card">
       <div class="kicker">データについて</div>
       <div class="note" style="margin-top:8px">
-        このv0.1では、入力した内容はこのブラウザのlocalStorageに保存されます。
-        銀行口座・カード・Zaim等とは接続しません。ブラウザのデータを消すと記録も消えるため、
-        本格運用前にバックアップ機能を追加する予定です。
+        入力した内容はこのiPhoneのブラウザ内に保存されます。銀行・カード・GitHubへ家計データを送信しません。
       </div>
     </div>
 
@@ -312,7 +388,7 @@ textarea{min-height:86px;resize:vertical}
   <div class="nav-inner">
     <button data-go="home" class="active" onclick="go('home')">ホーム</button>
     <button data-go="history" onclick="go('history')">履歴</button>
-    <button data-go="add" onclick="go('add')"><span class="plus">＋</span>追加</button>
+    <button data-go="add" class="add-nav" onclick="go('add')" aria-label="追加"><span class="plus">＋</span></button>
     <button data-go="assets" onclick="go('assets')">資産</button>
     <button data-go="settings" onclick="go('settings')">設定</button>
   </div>
@@ -331,7 +407,7 @@ const ids = [
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
 'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
-'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo'
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows'
 ];
 const el = {};
 ids.forEach(id => el[id] = $(id));
@@ -347,7 +423,7 @@ const state = {
   set threshold(v){ localStorage.setItem('kaokane_threshold',String(v)) }
 };
 
-let expenseType='必要', editExpenseType='必要', historyFilter='all', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set();
+let expenseType='必要', editExpenseType='必要', historyFilter='all', historyKind='expense', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set();
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const today=()=>{ const d=new Date(); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -359,7 +435,7 @@ function setup(){
   el.incomeCategory.innerHTML=incomeCategories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.editCategory.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   el.editPayment.innerHTML=payments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
-  el.date.value=today(); el.incomeDate.value=today(); el.thresholdInput.value=state.threshold;
+  el.date.value=today(); el.incomeDate.value=today(); el.thresholdInput.value=state.threshold; el.thresholdDisplay.textContent=yen(state.threshold);
   render();
 }
 
@@ -398,13 +474,13 @@ el.expenseForm.addEventListener('submit',e=>{
   if(amt>=state.threshold && !mem){ alert('高額支出はメモ必須です。何を購入したか入力してください。'); return; }
 
   const item={id:uid(),amount:amt,category:el.category.value,type:expenseType,payment:el.payment.value,
-    date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,createdAt:new Date().toISOString()};
+    date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,createdAt:new Date().toISOString(), splits:getSplitData(false)};
   const xs=state.expenses; xs.push(item); state.expenses=xs;
 
   if(item.payment==='現金'){
     const a=state.assets; a.cash=Math.max(0,Number(a.cash||0)-amt); state.assets=a;
   }
-  el.expenseForm.reset(); el.date.value=today(); pickType('必要'); render(); go('home');
+  el.expenseForm.reset(); el.date.value=today(); pickType('必要'); clearSplitRows(false); el.splitEditor.classList.add('hidden'); render(); go('home');
 });
 
 el.incomeForm.addEventListener('submit',e=>{
@@ -438,7 +514,7 @@ el.editExpenseForm.addEventListener('submit',e=>{
   const updated={
     ...old, amount:amt, category:el.editCategory.value, type:editExpenseType, payment:el.editPayment.value,
     date:el.editDate.value||today(), memo:mem, approx:el.editApprox.checked, unorganized:false,
-    updatedAt:new Date().toISOString()
+    updatedAt:new Date().toISOString(), splits:getSplitData(true)
   };
 
   // Apply the new cash effect.
@@ -460,6 +536,7 @@ function openEdit(id){
   el.editDate.value=x.date||today();
   el.editMemo.value=x.memo||'';
   el.editApprox.checked=!!x.approx;
+  populateEditSplits(x.splits||[]);
   el.editHighWarn.classList.toggle('hidden',Number(x.amount||0)<state.threshold);
   go('edit');
 }
@@ -502,15 +579,17 @@ function cancelArcade(){ arcadeSum=0; go('home'); }
 
 function updateBank(){
   const a=state.assets; a.bank=Number(el.bankInput.value||0); a.bankUpdated=today(); state.assets=a;
-  el.bankInput.value=''; renderAssets();
+  el.bankInput.value=''; renderAssets(); toggleBalanceAdjust(false);
 }
 function updateCash(){
   const a=state.assets; a.cash=Number(el.cashInput.value||0); state.assets=a;
-  el.cashInput.value=''; renderAssets();
+  el.cashInput.value=''; renderAssets(); toggleBalanceAdjust(false);
 }
 function saveThreshold(){
   state.threshold=Math.max(1000,Number(el.thresholdInput.value||10000));
   el.thresholdInput.value=state.threshold;
+  el.thresholdDisplay.textContent=yen(state.threshold);
+  toggleThresholdEdit(false);
   render();
   alert(`${state.threshold.toLocaleString('ja-JP')}円に設定しました。`);
 }
@@ -524,12 +603,75 @@ function resetAllData(){
 }
 
 
+
+function toggleThresholdEdit(force){
+  const show=typeof force==='boolean'?force:el.thresholdEditPanel.classList.contains('hidden');
+  el.thresholdEditPanel.classList.toggle('hidden',!show);
+  if(show){ el.thresholdInput.value=state.threshold; setTimeout(()=>el.thresholdInput.focus(),120); }
+}
+function toggleBalanceAdjust(force){
+  const show=typeof force==='boolean'?force:el.balanceAdjustPanel.classList.contains('hidden');
+  el.balanceAdjustPanel.classList.toggle('hidden',!show);
+}
+function setHistoryKind(kind){
+  historyKind=kind;
+  bulkMode=false;
+  selectedExpenseIds.clear();
+  el.bulkControls.classList.add('hidden');
+  el.histExpenseBtn.classList.toggle('active',kind==='expense');
+  el.histIncomeBtn.classList.toggle('active',kind==='income');
+  el.expenseFilters.classList.toggle('hidden',kind!=='expense');
+  el.bulkModeBtn.classList.toggle('hidden',kind!=='expense');
+  renderHistory();
+}
+function toggleSplitEditor(){
+  const willShow=el.splitEditor.classList.contains('hidden');
+  el.splitEditor.classList.toggle('hidden',!willShow);
+  if(willShow && el.splitRows.children.length===0) addSplitRow();
+}
+function toggleEditSplitEditor(){
+  const willShow=el.editSplitEditor.classList.contains('hidden');
+  el.editSplitEditor.classList.toggle('hidden',!willShow);
+  if(willShow && el.editSplitRows.children.length===0) addEditSplitRow();
+}
+function splitRowHTML(name='',amount='',settled=false){
+  return `<div class="split-row">
+    <input class="split-name" type="text" placeholder="相手の名前" value="${esc(name)}">
+    <input class="split-amount" type="number" min="1" inputmode="numeric" placeholder="金額" value="${amount||''}">
+    <button type="button" class="split-remove" onclick="this.parentElement.remove()">×</button>
+    <input class="split-settled" type="hidden" value="${settled?'1':'0'}">
+  </div>`;
+}
+function addSplitRow(){ el.splitRows.insertAdjacentHTML('beforeend',splitRowHTML()); }
+function addEditSplitRow(){ el.editSplitRows.insertAdjacentHTML('beforeend',splitRowHTML()); }
+function clearSplitRows(edit=false){ (edit?el.editSplitRows:el.splitRows).innerHTML=''; }
+function getSplitData(edit=false){
+  const root=edit?el.editSplitRows:el.splitRows;
+  return [...root.querySelectorAll('.split-row')].map(r=>({
+    id:uid(),
+    name:r.querySelector('.split-name').value.trim(),
+    amount:Number(r.querySelector('.split-amount').value||0),
+    settled:r.querySelector('.split-settled')?.value==='1'
+  })).filter(x=>x.name && x.amount>0);
+}
+function populateEditSplits(splits){
+  clearSplitRows(true);
+  splits.forEach(s=>el.editSplitRows.insertAdjacentHTML('beforeend',splitRowHTML(s.name,s.amount,!!s.settled)));
+  el.editSplitEditor.classList.toggle('hidden',splits.length===0);
+}
+function markSplitSettled(expenseId,splitIndex){
+  const xs=state.expenses;
+  const x=xs.find(v=>v.id===expenseId);
+  if(!x || !x.splits || !x.splits[splitIndex]) return;
+  x.splits[splitIndex].settled=true;
+  state.expenses=xs;
+  render();
+}
 function toggleBulkMode(){
   bulkMode=!bulkMode;
   selectedExpenseIds.clear();
-  el.bulkModeBtn.textContent=bulkMode?'選択をやめる':'複数選択';
-  el.bulkDeleteBtn.classList.toggle('hidden',!bulkMode);
-  el.bulkInfo.classList.toggle('hidden',!bulkMode);
+  el.bulkModeBtn.textContent=bulkMode?'選択終了':'複数選択';
+  el.bulkControls.classList.toggle('hidden',!bulkMode);
   updateBulkInfo();
   renderHistory();
 }
@@ -571,8 +713,7 @@ function bulkDelete(){
   selectedExpenseIds.clear();
   bulkMode=false;
   el.bulkModeBtn.textContent='複数選択';
-  el.bulkDeleteBtn.classList.add('hidden');
-  el.bulkInfo.classList.add('hidden');
+  el.bulkControls.classList.add('hidden');
   render();
 }
 
@@ -606,12 +747,31 @@ function itemHTML(x){
   </div>`;
 }
 
+function incomeItemHTML(x){
+  const sub=[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ');
+  return `<div class="item">
+    <div class="item-main"><div class="item-title">${esc(x.category||'収入')}</div><div class="item-sub">${sub}</div></div>
+    <div class="item-amount">${yen(x.amount)}</div>
+  </div>`;
+}
 function renderHistory(){
+  el.histExpenseBtn.classList.toggle('active',historyKind==='expense');
+  el.histIncomeBtn.classList.toggle('active',historyKind==='income');
+  el.expenseFilters.classList.toggle('hidden',historyKind!=='expense');
+  el.bulkModeBtn.classList.toggle('hidden',historyKind!=='expense');
+
+  if(historyKind==='income'){
+    const inc=[...state.incomes].sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+    el.historyList.innerHTML=inc.map(incomeItemHTML).join('')||'<div class="empty">まだ収入がありません。</div>';
+    return;
+  }
+
   el.histAllBtn.classList.toggle('active',historyFilter==='all');
   el.histHighBtn.classList.toggle('active',historyFilter==='high');
   let xs=[...state.expenses].sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
   if(historyFilter==='high') xs=xs.filter(x=>x.amount>=state.threshold);
-  el.historyList.innerHTML=xs.map(itemHTML).join('')||'<div class="empty">該当する支出はありません。</div>'; updateBulkInfo();
+  el.historyList.innerHTML=xs.map(itemHTML).join('')||'<div class="empty">該当する支出はありません。</div>';
+  updateBulkInfo();
 }
 
 function renderAssets(){
@@ -649,12 +809,33 @@ function render(){
     .sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')))
     .slice(0,6).map(itemHTML).join('')||'<div class="empty">まだ支出がありません。</div>';
 
+  const monthIncome=state.incomes.filter(x=>isThisMonth(x.date)).sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+  el.incomeMonthTitle.textContent=`${now.getMonth()+1}月の収入`;
+  el.homeIncomeTotal.textContent=yen(monthIncome.reduce((s,x)=>s+Number(x.amount||0),0));
+  el.homeIncomeList.innerHTML=monthIncome.map(incomeItemHTML).join('')||'<div class="empty">今月の収入はまだありません。</div>';
+
+  const unsettled=[];
+  state.expenses.forEach(exp=>{
+    (exp.splits||[]).forEach((s,idx)=>{
+      if(!s.settled) unsettled.push({expense:exp,split:s,index:idx});
+    });
+  });
+  el.unsettledSection.classList.toggle('hidden',unsettled.length===0);
+  el.unsettledList.innerHTML=unsettled.map(u=>`
+    <div class="item">
+      <div class="item-main">
+        <div class="unsettled-name">${esc(u.split.name)} から ${yen(u.split.amount)}</div>
+        <div class="unsettled-sub">${esc(u.expense.date)} · ${esc(u.expense.memo||u.expense.category||'支出')}</div>
+      </div>
+      <button class="settle-btn" onclick="markSplitSettled('${esc(u.expense.id)}',${u.index})">受取済</button>
+    </div>`).join('');
+
   renderHistory(); renderAssets();
 }
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled
 });
 
 try{
@@ -673,7 +854,7 @@ try{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.5', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.6', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
