@@ -139,31 +139,23 @@ input[type="date"]{
 .chart-wrap{width:100%;overflow:hidden;background:#fafafa;border:1px solid var(--line);border-radius:14px;padding:8px}
 .chart-wrap canvas{display:block;width:100%;height:auto}
 
-/* v0.10: panels opened after a one-cushion action */
-#paymentMapPanel,#analyticsPanel,#recurringPanel,#transferPanel,#settlementPanel{
-  background:#f1f2f4;
-  border-color:#d7d9dd;
+#paymentMapPanel,#analyticsPanel,#recurringAddPanel,#recurringEditPanel,#transferPanel{
+  background:#f1f2f4;border-color:#d7d9dd
 }
-
-/* Recurring / transfer / settlement */
 .detail-toggle{margin-top:10px;border:1px solid var(--line);background:#f5f5f6;border-radius:12px;padding:11px 12px;font-weight:800;font-size:12px;width:100%;text-align:left}
 .detail-panel{margin-top:10px;background:#f1f2f4;border:1px solid #d7d9dd;border-radius:14px;padding:12px}
 .inline-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pending-card{border:1px solid #d7d9dd;border-radius:12px;padding:11px;background:#f7f7f8;margin-top:8px}
-.pending-title{font-weight:900}
-.pending-meta{font-size:11px;color:var(--muted);margin-top:4px}
+.pending-title{font-weight:900}.pending-meta{font-size:11px;color:var(--muted);margin-top:4px}
 .pie-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(125px,.75fr);gap:12px;align-items:center;margin-top:16px}
-.pie-legend{font-size:11px;line-height:1.55}
-.pie-row{display:grid;grid-template-columns:10px 1fr auto;gap:6px;align-items:center;margin:5px 0}
-.pie-dot{width:8px;height:8px;border-radius:50%}
-@media(max-width:430px){.pie-layout{grid-template-columns:1fr 135px}.inline-grid{grid-template-columns:1fr 1fr}}
+.pie-legend{font-size:11px;line-height:1.55}.pie-row{display:grid;grid-template-columns:10px 1fr auto;gap:6px;align-items:center;margin:5px 0}.pie-dot{width:8px;height:8px;border-radius:50%}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.10.2</div>
+    <div class="badge">v0.10.3</div>
   </div>
 
   <section id="home" class="screen active">
@@ -209,6 +201,15 @@ input[type="date"]{
     <div id="unsettledSection" class="hidden">
       <div class="section-title">未精算の立替</div>
       <div class="card"><div class="list" id="unsettledList"></div></div>
+    </div>
+
+    <div id="settlementHomeSection" class="hidden">
+      <div class="section-title">精算待ち</div>
+      <div class="card">
+        <div class="note">返金をもらう／返金する予定を、精算済みにするまで表示します。</div>
+        <button class="mini-action" style="margin-top:10px" onclick="addPaybackReminder()">＋ 自分が返す予定を追加</button>
+        <div id="settlementHomeList"></div>
+      </div>
     </div>
 
     <div class="section-title">最近の支出</div>
@@ -268,13 +269,22 @@ input[type="date"]{
           <input id="approx" type="checkbox" style="width:auto"> 概算として記録
         </label>
         <div class="hr"></div>
-        <button type="button" class="inline-toggle" id="splitToggleBtn" onclick="toggleSplitEditor()">立替・割り勘<button type="button" class="mini-action" style="margin-left:8px" onclick="addPaybackReminder()">自分が返す予定を追加</button>を記録</button>
+        <button type="button" class="inline-toggle" id="splitToggleBtn" onclick="toggleSplitEditor()">立替・割り勘を記録</button>
         <div id="splitEditor" class="hidden">
           <div class="note" style="margin-bottom:10px">自分がまとめて払ったとき、誰からいくら受け取る予定か記録します。</div>
           <div id="splitRows" class="split-rows"></div>
           <button type="button" class="btn secondary full" onclick="addSplitRow()">＋ 人を追加</button>
         </div>
 
+        <button type="button" class="detail-toggle" onclick="toggleRecurringDetail('add')">定期支出の詳細設定</button>
+        <div id="recurringAddPanel" class="detail-panel hidden">
+          <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px"><input id="recurringEnabled" type="checkbox" style="width:auto"> この支出を自動更新する</label>
+          <div class="inline-grid" style="margin-top:10px">
+            <label>周期<select id="recurringUnit"><option value="monthly">月単位</option><option value="yearly">年単位</option></select></label>
+            <label>間隔<input id="recurringEvery" type="number" min="1" value="1" inputmode="numeric"></label>
+          </div>
+          <div class="note">例：毎月＝月単位・1、2か月ごと＝月単位・2、毎年＝年単位・1。</div>
+        </div>
         <div id="highWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
         <button class="btn full" type="submit">登録する</button>
       </form>
@@ -330,7 +340,15 @@ input[type="date"]{
           <button type="button" class="btn secondary full" onclick="addEditSplitRow()">＋ 人を追加</button>
         </div>
 
-        <div id="editHighWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
+                <button type="button" class="detail-toggle" onclick="toggleRecurringDetail('edit')">定期支出の詳細設定</button>
+        <div id="recurringEditPanel" class="detail-panel hidden">
+          <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px"><input id="editRecurringEnabled" type="checkbox" style="width:auto"> この支出を自動更新する</label>
+          <div class="inline-grid" style="margin-top:10px">
+            <label>周期<select id="editRecurringUnit"><option value="monthly">月単位</option><option value="yearly">年単位</option></select></label>
+            <label>間隔<input id="editRecurringEvery" type="number" min="1" value="1" inputmode="numeric"></label>
+          </div>
+        </div>
+<div id="editHighWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
         <button class="btn full" type="submit">変更を保存</button>
         <button class="btn danger full" type="button" onclick="deleteCurrentExpense()">この支出を削除</button>
         <button class="btn ghost full" type="button" onclick="go('history')">キャンセル</button>
@@ -354,25 +372,15 @@ input[type="date"]{
     </div>
 
     <div class="compact-setting-card">
-      <div>
-        <div class="kicker">お金の移動</div>
-        <div class="note">生活口座 ⇄ 現金</div>
-      </div>
+      <div><div class="kicker">お金の移動</div><div class="note">生活口座 ⇄ 現金</div></div>
       <button class="mini-action" onclick="toggleTransferPanel()">移動する</button>
     </div>
     <div id="transferPanel" class="card hidden">
       <div class="inline-grid">
-        <label>移動
-          <select id="transferDirection">
-            <option value="bankToCash">生活口座 → 現金</option>
-            <option value="cashToBank">現金 → 生活口座</option>
-          </select>
-        </label>
-        <label>金額
-          <input id="transferAmount" type="number" min="1" inputmode="numeric" placeholder="0">
-        </label>
+        <label>移動<select id="transferDirection"><option value="bankToCash">生活口座 → 現金</option><option value="cashToBank">現金 → 生活口座</option></select></label>
+        <label>金額<input id="transferAmount" type="number" min="1" inputmode="numeric" placeholder="0"></label>
       </div>
-      <button class="btn primary full" style="margin-top:12px" onclick="executeTransfer()">残高に反映</button>
+      <button class="btn full" style="margin-top:12px" onclick="executeTransfer()">残高に反映</button>
       <button class="btn secondary full" style="margin-top:8px" onclick="toggleTransferPanel(false)">閉じる</button>
     </div>
 
@@ -394,12 +402,8 @@ input[type="date"]{
         <canvas id="financeChart" width="640" height="340"></canvas>
       </div>
       <div class="note" id="chartNote" style="margin-top:8px"></div>
-      <div id="categoryPieSection">
-        <div class="section-title" style="font-size:13px;margin-top:18px">今月の支出内訳</div>
-        <div class="pie-layout">
-          <canvas id="categoryPie" width="320" height="320"></canvas>
-          <div id="categoryPieLegend" class="pie-legend"></div>
-        </div>
+      <div><div class="section-title" style="font-size:13px;margin-top:18px">今月の支出内訳</div>
+        <div class="pie-layout"><canvas id="categoryPie" width="320" height="320"></canvas><div id="categoryPieLegend" class="pie-legend"></div></div>
       </div>
       <button class="btn secondary full" style="margin-top:12px" onclick="toggleAnalytics(false)">閉じる</button>
     </div>
@@ -493,14 +497,20 @@ input[type="date"]{
     <button data-go="home" class="active" onclick="go('home')">ホーム</button>
     <button data-go="history" onclick="go('history')">履歴</button>
     <button data-go="add" class="add-nav" onclick="go('add')" aria-label="追加"><span class="plus">＋</span></button>
-    <button data-go="assets" oncli<script src="./app.js?v=0.10.2"></script>
+    <button data-go="assets" onclick="go('assets')">資産</button>
+    <button data-go="settings" onclick="go('settings')">設定</button>
+  </div>
+</nav>
+
+
+<script src="./app.js?v=0.10.3"></script>
 
 
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.2', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.3', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {

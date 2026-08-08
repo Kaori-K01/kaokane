@@ -96,7 +96,7 @@ el.expenseForm.addEventListener('submit',e=>{
   const xs=state.expenses; xs.push(item); state.expenses=xs;
 
   applyExpenseBalance(item.payment,amt,-1);
-  el.expenseForm.reset(); el.date.value=today(); pickType('必要'); clearSplitRows(false); el.splitEditor.classList.add('hidden'); render(); go('home');
+  el.expenseForm.reset(); el.recurringEnabled.checked=false; el.recurringUnit.value='monthly'; el.recurringEvery.value=1; el.recurringAddPanel.classList.add('hidden'); el.date.value=today(); pickType('必要'); clearSplitRows(false); el.splitEditor.classList.add('hidden'); render(); go('home');
 });
 
 el.incomeForm.addEventListener('submit',e=>{
@@ -153,6 +153,7 @@ function openEdit(id){
   el.editApprox.checked=!!x.approx;
   populateEditSplits(x.splits||[]);
   el.editHighWarn.classList.toggle('hidden',Number(x.amount||0)<state.threshold);
+  const rr=state.recurring.find(r=>r.sourceExpenseId===x.id);el.editRecurringEnabled.checked=!!rr;el.editRecurringUnit.value=rr?.unit||'monthly';el.editRecurringEvery.value=rr?.every||1;el.recurringEditPanel.classList.add('hidden');
   go('edit');
 }
 
@@ -310,111 +311,50 @@ function toggleRecurringDetail(mode){
   panel.classList.toggle('hidden');
 }
 function addMonthsSafe(dateStr,n){
-  const [y,m,d]=dateStr.split('-').map(Number);
-  const target=new Date(y,m-1+n,1);
-  const last=new Date(target.getFullYear(),target.getMonth()+1,0).getDate();
-  return `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`;
+  const [y,m,d]=dateStr.split('-').map(Number),t=new Date(y,m-1+n,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`;
 }
 function addYearsSafe(dateStr,n){
-  const [y,m,d]=dateStr.split('-').map(Number);
-  const last=new Date(y+n,m,0).getDate();
+  const [y,m,d]=dateStr.split('-').map(Number),last=new Date(y+n,m,0).getDate();
   return `${y+n}-${String(m).padStart(2,'0')}-${String(Math.min(d,last)).padStart(2,'0')}`;
 }
-function nextRecurringDate(dateStr,unit,every){
-  return unit==='yearly'?addYearsSafe(dateStr,every):addMonthsSafe(dateStr,every);
-}
-function processRecurringExpenses(){
-  const rules=state.recurring;
-  if(!rules.length) return;
-  const xs=state.expenses;
-  let changed=false, rulesChanged=false;
-  rules.forEach(r=>{
-    if(!r.active) return;
-    let guard=0;
-    while(r.nextDate<=today() && guard++<60){
-      const item={
-        id:uid(),amount:Number(r.amount),category:r.category,type:r.type,payment:r.payment,date:r.nextDate,
-        memo:r.memo||'',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[],
-        recurringRuleId:r.id,autoRecurring:true
-      };
-      xs.push(item);
-      applyExpenseBalance(item.payment,item.amount,-1);
-      r.nextDate=nextRecurringDate(r.nextDate,r.unit,Number(r.every||1));
-      changed=true;rulesChanged=true;
-    }
-  });
-  if(changed) state.expenses=xs;
-  if(rulesChanged) state.recurring=rules;
-}
+function nextRecurringDate(d,u,e){return u==='yearly'?addYearsSafe(d,e):addMonthsSafe(d,e);}
 function syncRecurringRuleFromExpense(item,enabled,unit,every){
-  let rules=state.recurring;
-  rules=rules.filter(r=>r.sourceExpenseId!==item.id);
-  if(enabled){
-    rules.push({
-      id:uid(),sourceExpenseId:item.id,active:true,amount:Number(item.amount),category:item.category,type:item.type,
-      payment:item.payment,memo:item.memo||'',unit,every:Math.max(1,Number(every||1)),
-      nextDate:nextRecurringDate(item.date,unit,Math.max(1,Number(every||1)))
-    });
-  }
+  let rules=state.recurring.filter(r=>r.sourceExpenseId!==item.id);
+  if(enabled){const e=Math.max(1,Number(every||1));rules.push({id:uid(),sourceExpenseId:item.id,active:true,amount:Number(item.amount),category:item.category,type:item.type,payment:item.payment,memo:item.memo||'',unit,every:e,nextDate:nextRecurringDate(item.date,unit,e)});}
   state.recurring=rules;
 }
+function processRecurringExpenses(){
+  const rules=state.recurring;if(!rules.length)return;const xs=state.expenses;let changed=false;
+  rules.forEach(r=>{if(!r.active)return;let guard=0;while(r.nextDate<=today()&&guard++<60){
+    const item={id:uid(),amount:Number(r.amount),category:r.category,type:r.type,payment:r.payment,date:r.nextDate,memo:r.memo||'',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[],recurringRuleId:r.id,autoRecurring:true};
+    xs.push(item);applyExpenseBalance(item.payment,item.amount,-1);r.nextDate=nextRecurringDate(r.nextDate,r.unit,Number(r.every||1));changed=true;
+  }});
+  if(changed){state.expenses=xs;state.recurring=rules;}
+}
 function toggleTransferPanel(force){
-  const show=typeof force==='boolean'?force:el.transferPanel.classList.contains('hidden');
-  el.transferPanel.classList.toggle('hidden',!show);
+  const show=typeof force==='boolean'?force:el.transferPanel.classList.contains('hidden');el.transferPanel.classList.toggle('hidden',!show);
 }
 function executeTransfer(){
-  const amt=Number(el.transferAmount.value||0);
-  if(!amt||amt<=0){alert('金額を入力してください。');return;}
+  const amt=Number(el.transferAmount.value||0);if(!amt||amt<=0){alert('金額を入力してください。');return;}
   const a=state.assets;
-  if(el.transferDirection.value==='bankToCash'){
-    if(amt>Number(a.bank||0)){alert('生活口座残高を超えています。');return;}
-    a.bank=Number(a.bank||0)-amt;a.cash=Number(a.cash||0)+amt;
-  }else{
-    if(amt>Number(a.cash||0)){alert('現金残高を超えています。');return;}
-    a.cash=Number(a.cash||0)-amt;a.bank=Number(a.bank||0)+amt;
-  }
-  state.assets=a;
-  recordBalanceSnapshot('transfer');
-  el.transferAmount.value='';
-  renderAssets();renderFinanceChart();
-  toggleTransferPanel(false);
+  if(el.transferDirection.value==='bankToCash'){if(amt>Number(a.bank||0)){alert('生活口座残高を超えています。');return;}a.bank-=amt;a.cash=Number(a.cash||0)+amt;}
+  else{if(amt>Number(a.cash||0)){alert('現金残高を超えています。');return;}a.cash-=amt;a.bank=Number(a.bank||0)+amt;}
+  state.assets=a;recordBalanceSnapshot('transfer');el.transferAmount.value='';renderAssets();renderFinanceChart();toggleTransferPanel(false);
 }
-
 function addPaybackReminder(){
-  const name=prompt('返金する相手の名前');
-  if(name===null)return;
-  const amount=Number(prompt('返金する金額')||0);
-  if(!amount)return;
-  const arr=state.settlements;
-  arr.push({id:uid(),kind:'pay',name:name||'相手',amount,date:today(),settled:false});
-  state.settlements=arr;
-  renderSettlementHome();
+  const name=prompt('返金する相手の名前');if(name===null)return;const amount=Number(prompt('返金する金額')||0);if(!amount)return;
+  const arr=state.settlements;arr.push({id:uid(),kind:'pay',name:name||'相手',amount,date:today(),settled:false});state.settlements=arr;renderSettlementHome();
 }
 function renderSettlementHome(){
-  if(!el.settlementHomeSection||!el.settlementHomeList) return;
-  const pending=[];
-  state.expenses.forEach(x=>(x.splits||[]).filter(s=>!s.settled).forEach(s=>{
-    pending.push({kind:'receive',expenseId:x.id,splitId:s.id,name:s.name||'相手',amount:Number(s.amount||0),date:x.date});
-  }));
+  if(!el.settlementHomeSection||!el.settlementHomeList)return;const pending=[];
+  state.expenses.forEach(x=>(x.splits||[]).forEach((s,i)=>{if(!s.settled)pending.push({id:`split:${x.id}:${i}`,kind:'receive',name:s.name||'相手',amount:Number(s.amount||0),date:x.date,expenseId:x.id,index:i});}));
   state.settlements.filter(s=>!s.settled).forEach(s=>pending.push(s));
   el.settlementHomeSection.classList.toggle('hidden',pending.length===0);
-  el.settlementHomeList.innerHTML=pending.map(p=>`
-    <div class="pending-card">
-      <div class="pending-title">${p.kind==='pay'?'返金する':'返金をもらう'} · ${esc(p.name||'相手')}</div>
-      <div class="pending-meta">${yen(p.amount)} · ${esc(p.date||'')}</div>
-      <button class="mini-action" style="margin-top:8px" onclick="settlePending('${p.kind}','${p.expenseId||''}','${p.splitId||p.id||''}')">精算済みにする</button>
-    </div>`).join('');
+  el.settlementHomeList.innerHTML=pending.map(p=>`<div class="pending-card"><div class="pending-title">${p.kind==='pay'?'返金する':'返金をもらう'} · ${esc(p.name||'相手')}</div><div class="pending-meta">${yen(p.amount)} · ${esc(p.date||'')}</div><button class="mini-action" style="margin-top:8px" onclick="settlePending('${p.kind}','${p.id}','${p.expenseId||''}',${Number.isInteger(p.index)?p.index:-1})">精算済みにする</button></div>`).join('');
 }
-function settlePending(kind,expenseId,id){
-  if(kind==='receive'){
-    markSplitSettled(expenseId,id);
-  }else{
-    const arr=state.settlements;
-    const x=arr.find(s=>s.id===id);
-    if(x)x.settled=true;
-    state.settlements=arr;
-  }
-  renderSettlementHome();render();
+function settlePending(kind,id,expenseId,index){
+  if(kind==='receive')markSplitSettled(expenseId,index);else{const arr=state.settlements,x=arr.find(s=>s.id===id);if(x)x.settled=true;state.settlements=arr;}render();
 }
 function migrateDataSafely(){
   // Never delete user data during an app update.
@@ -513,18 +453,10 @@ function renderFinanceChart(){
   el.chartNote.textContent=note;
 
   const numeric=values.filter(v=>v!=null);
-  const rawMax=Math.max(1,...numeric);
-  const rawMin=chartMode==='balance' && numeric.length?Math.min(...numeric):0;
-  const niceStep=(range)=>{
-    const rough=Math.max(1,range/4);
-    const pow=Math.pow(10,Math.floor(Math.log10(rough)));
-    const n=rough/pow;
-    const nice=n<=1?1:n<=2?2:n<=5?5:10;
-    return nice*pow;
-  };
+  const rawMax=Math.max(1,...numeric), rawMin=chartMode==='balance'&&numeric.length?Math.min(...numeric):0;
+  const niceStep=(range)=>{const rough=Math.max(1,range/4),pow=Math.pow(10,Math.floor(Math.log10(rough))),n=rough/pow;return (n<=1?1:n<=2?2:n<=5?5:10)*pow;};
   const step=niceStep(rawMax-(chartMode==='balance'?rawMin:0));
-  const max=Math.ceil(rawMax/step)*step;
-  const min=chartMode==='balance'?Math.floor(rawMin/step)*step:0;
+  const max=Math.ceil(rawMax/step)*step, min=chartMode==='balance'?Math.floor(rawMin/step)*step:0;
   const padL=76,padR=24,padT=28,padB=54;
   const gw=W-padL-padR, gh=H-padT-padB;
 
@@ -580,41 +512,21 @@ function renderFinanceChart(){
       }
     });
   }
-  renderCategoryPie();
 }
+
 function renderCategoryPie(){
-  const canvas=el.categoryPie, legend=el.categoryPieLegend;
-  if(!canvas||!legend) return;
-  const ctx=canvas.getContext('2d'), W=canvas.width, H=canvas.height;
-  ctx.clearRect(0,0,W,H);
-  const current=monthKey(today());
-  const totals={};
-  state.expenses.filter(x=>!x.unorganized && monthKey(x.date)===current).forEach(x=>{
-    totals[x.category]=(totals[x.category]||0)+effectiveExpenseAmount(x);
-  });
-  const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const total=rows.reduce((s,[,v])=>s+v,0);
-  if(!total){
-    ctx.fillStyle='#888';ctx.font='22px -apple-system,sans-serif';ctx.textAlign='center';
-    ctx.fillText('データなし',W/2,H/2);
-    legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';
-    return;
-  }
-  const colors=['#d96b62','#4d5968','#858c96','#b4a79d','#6f7c72','#9b8585','#707070','#c0b8ae','#555d66','#aaa'];
-  let angle=-Math.PI/2;
-  rows.forEach(([name,val],i)=>{
-    const next=angle+(val/total)*Math.PI*2;
-    ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.arc(W/2,H/2,W*.42,angle,next);ctx.closePath();
-    ctx.fillStyle=colors[i%colors.length];ctx.fill();angle=next;
-  });
-  ctx.beginPath();ctx.arc(W/2,H/2,W*.22,0,Math.PI*2);ctx.fillStyle='#f1f2f4';ctx.fill();
-  ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 22px -apple-system,sans-serif';
-  ctx.fillText('¥'+total.toLocaleString('ja-JP'),W/2,H/2+7);
-  legend.innerHTML=rows.map(([name,val],i)=>{
-    const pct=Math.round(val/total*100);
-    return `<div class="pie-row"><span class="pie-dot" style="background:${colors[i%colors.length]}"></span><span>${esc(name)}</span><strong>${pct}%</strong></div><div class="note" style="margin-left:16px">${yen(val)}</div>`;
-  }).join('');
+  const canvas=el.categoryPie,legend=el.categoryPieLegend;if(!canvas||!legend)return;
+  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;ctx.clearRect(0,0,W,H);
+  const current=monthKey(today()),totals={};
+  state.expenses.filter(x=>!x.unorganized&&monthKey(x.date)===current).forEach(x=>{totals[x.category]=(totals[x.category]||0)+effectiveExpenseAmount(x);});
+  const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]),total=rows.reduce((s,[,v])=>s+v,0);
+  if(!total){ctx.fillStyle='#888';ctx.font='22px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText('データなし',W/2,H/2);legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';return;}
+  const colors=['#d96b62','#4d5968','#858c96','#b4a79d','#6f7c72','#9b8585','#707070','#c0b8ae','#555d66','#aaa'];let angle=-Math.PI/2;
+  rows.forEach(([name,val],i)=>{const next=angle+(val/total)*Math.PI*2;ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.arc(W/2,H/2,W*.42,angle,next);ctx.closePath();ctx.fillStyle=colors[i%colors.length];ctx.fill();angle=next;});
+  ctx.beginPath();ctx.arc(W/2,H/2,W*.22,0,Math.PI*2);ctx.fillStyle='#f1f2f4';ctx.fill();ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 22px -apple-system,sans-serif';ctx.fillText('¥'+total.toLocaleString('ja-JP'),W/2,H/2+7);
+  legend.innerHTML=rows.map(([name,val],i)=>`<div class="pie-row"><span class="pie-dot" style="background:${colors[i%colors.length]}"></span><span>${esc(name)}</span><strong>${Math.round(val/total*100)}%</strong></div><div class="note" style="margin-left:16px">${yen(val)}</div>`).join('');
 }
+
 function toggleThresholdEdit(force){
   const show=typeof force==='boolean'?force:el.thresholdEditPanel.classList.contains('hidden');
   el.thresholdEditPanel.classList.toggle('hidden',!show);
@@ -868,7 +780,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,settlePending,addPaybackReminder
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending
 });
 
 try{
