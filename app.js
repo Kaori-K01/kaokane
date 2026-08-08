@@ -347,11 +347,31 @@ function addPaybackReminder(){
   const arr=state.settlements;arr.push({id:uid(),kind:'pay',name:name||'相手',amount,date:today(),settled:false});state.settlements=arr;renderSettlementHome();
 }
 function renderSettlementHome(){
-  if(!el.settlementHomeSection||!el.settlementHomeList)return;const pending=[];
-  state.expenses.forEach(x=>(x.splits||[]).forEach((s,i)=>{if(!s.settled)pending.push({id:`split:${x.id}:${i}`,kind:'receive',name:s.name||'相手',amount:Number(s.amount||0),date:x.date,expenseId:x.id,index:i});}));
+  if(!el.settlementHomeSection||!el.settlementHomeList)return;
+  const pending=[];
+  state.expenses.forEach(x=>(x.splits||[]).forEach((s,i)=>{
+    if(!s.settled)pending.push({
+      id:`split:${x.id}:${i}`,kind:'receive',name:s.name||'相手',
+      amount:Number(s.amount||0),date:x.date,expenseId:x.id,index:i,
+      memo:x.memo||x.category||'支出'
+    });
+  }));
   state.settlements.filter(s=>!s.settled).forEach(s=>pending.push(s));
   el.settlementHomeSection.classList.toggle('hidden',pending.length===0);
-  el.settlementHomeList.innerHTML=pending.map(p=>`<div class="pending-card"><div class="pending-title">${p.kind==='pay'?'返金する':'返金をもらう'} · ${esc(p.name||'相手')}</div><div class="pending-meta">${yen(p.amount)} · ${esc(p.date||'')}</div><button class="mini-action" style="margin-top:8px" onclick="settlePending('${p.kind}','${p.id}','${p.expenseId||''}',${Number.isInteger(p.index)?p.index:-1})">精算済みにする</button></div>`).join('');
+  if(!pending.length){el.settlementHomeList.innerHTML='';return;}
+  const receiveCount=pending.filter(p=>p.kind==='receive').length;
+  const payCount=pending.filter(p=>p.kind==='pay').length;
+  el.settlementHomeList.innerHTML=
+    `<div class="note" style="margin-top:10px">受取待ち ${receiveCount}件 · 返金待ち ${payCount}件</div>`+
+    pending.map(p=>`
+      <div class="pending-card">
+        <div class="pending-title">${p.kind==='pay'?'自分が返金する':'返金をもらう'} · ${esc(p.name||'相手')}</div>
+        <div class="pending-meta">${yen(p.amount)} · ${esc(p.date||'')}${p.memo?` · ${esc(p.memo)}`:''}</div>
+        <button class="mini-action" style="margin-top:8px"
+          onclick="settlePending('${p.kind}','${p.id}','${p.expenseId||''}',${Number.isInteger(p.index)?p.index:-1})">
+          ${p.kind==='pay'?'返金した':'返金された'}
+        </button>
+      </div>`).join('');
 }
 function settlePending(kind,id,expenseId,index){
   if(kind==='receive')markSplitSettled(expenseId,index);else{const arr=state.settlements,x=arr.find(s=>s.id===id);if(x)x.settled=true;state.settlements=arr;}render();
@@ -448,15 +468,37 @@ function renderFinanceChart(){
     if(idx>=0 && values[idx]==null){
       const a=state.assets;values[idx]=Number(a.bank||0)+Number(a.cash||0);
     }
-    note='生活口座＋現金の合算残高（各月の最終記録）';
+    note='残高＝生活口座＋現金の合算（各月の最終記録）';
   }
   el.chartNote.textContent=note;
 
   const numeric=values.filter(v=>v!=null);
-  const rawMax=Math.max(1,...numeric), rawMin=chartMode==='balance'&&numeric.length?Math.min(...numeric):0;
-  const niceStep=(range)=>{const rough=Math.max(1,range/4),pow=Math.pow(10,Math.floor(Math.log10(rough))),n=rough/pow;return (n<=1?1:n<=2?2:n<=5?5:10)*pow;};
-  const step=niceStep(rawMax-(chartMode==='balance'?rawMin:0));
-  const max=Math.ceil(rawMax/step)*step, min=chartMode==='balance'?Math.floor(rawMin/step)*step:0;
+  const rawMax=Math.max(0,...numeric);
+  const rawMin=chartMode==='balance'&&numeric.length?Math.min(...numeric):0;
+  const niceNumber=(value,round)=>{
+    if(!isFinite(value)||value<=0)return 1;
+    const exponent=Math.floor(Math.log10(value));
+    const fraction=value/Math.pow(10,exponent);
+    let niceFraction;
+    if(round){
+      niceFraction=fraction<1.5?1:fraction<3?2:fraction<7?5:10;
+    }else{
+      niceFraction=fraction<=1?1:fraction<=2?2:fraction<=5?5:10;
+    }
+    return niceFraction*Math.pow(10,exponent);
+  };
+  const niceBounds=(lo,hi)=>{
+    if(hi<=lo)hi=lo+1;
+    const range=niceNumber(hi-lo,false);
+    const step=niceNumber(range/4,true);
+    return {
+      min: chartMode==='balance' ? Math.floor(lo/step)*step : 0,
+      max: Math.ceil(hi/step)*step || step,
+      step
+    };
+  };
+  const bounds=niceBounds(rawMin,Math.max(1,rawMax));
+  const min=bounds.min,max=bounds.max,step=bounds.step;
   const padL=76,padR=24,padT=28,padB=54;
   const gw=W-padL-padR, gh=H-padT-padB;
 
@@ -464,10 +506,11 @@ function renderFinanceChart(){
   ctx.strokeStyle='#dddddd';ctx.lineWidth=1;
   ctx.fillStyle='#777';ctx.font='18px -apple-system, sans-serif';
   ctx.textAlign='right';
-  for(let i=0;i<=4;i++){
-    const y=padT+gh*i/4;
+  const tickCount=Math.max(1,Math.round((max-min)/step));
+  for(let i=0;i<=tickCount;i++){
+    const val=max-step*i;
+    const y=padT+gh*((max-val)/Math.max(1,max-min));
     ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
-    const val=max-(max-min)*i/4;
     ctx.fillText('¥'+Math.round(val).toLocaleString('ja-JP'),padL-10,y+6);
   }
 
@@ -518,13 +561,36 @@ function renderCategoryPie(){
   const canvas=el.categoryPie,legend=el.categoryPieLegend;if(!canvas||!legend)return;
   const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;ctx.clearRect(0,0,W,H);
   const current=monthKey(today()),totals={};
-  state.expenses.filter(x=>!x.unorganized&&monthKey(x.date)===current).forEach(x=>{totals[x.category]=(totals[x.category]||0)+effectiveExpenseAmount(x);});
-  const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]),total=rows.reduce((s,[,v])=>s+v,0);
-  if(!total){ctx.fillStyle='#888';ctx.font='22px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText('データなし',W/2,H/2);legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';return;}
-  const colors=['#d96b62','#4d5968','#858c96','#b4a79d','#6f7c72','#9b8585','#707070','#c0b8ae','#555d66','#aaa'];let angle=-Math.PI/2;
-  rows.forEach(([name,val],i)=>{const next=angle+(val/total)*Math.PI*2;ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.arc(W/2,H/2,W*.42,angle,next);ctx.closePath();ctx.fillStyle=colors[i%colors.length];ctx.fill();angle=next;});
-  ctx.beginPath();ctx.arc(W/2,H/2,W*.22,0,Math.PI*2);ctx.fillStyle='#f1f2f4';ctx.fill();ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 22px -apple-system,sans-serif';ctx.fillText('¥'+total.toLocaleString('ja-JP'),W/2,H/2+7);
-  legend.innerHTML=rows.map(([name,val],i)=>`<div class="pie-row"><span class="pie-dot" style="background:${colors[i%colors.length]}"></span><span>${esc(name)}</span><strong>${Math.round(val/total*100)}%</strong></div><div class="note" style="margin-left:16px">${yen(val)}</div>`).join('');
+  state.expenses.filter(x=>!x.unorganized&&monthKey(x.date)===current).forEach(x=>{
+    totals[x.category]=(totals[x.category]||0)+effectiveExpenseAmount(x);
+  });
+  const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const total=rows.reduce((s,[,v])=>s+v,0);
+  if(!total){
+    ctx.fillStyle='#888';ctx.font='22px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText('データなし',W/2,H/2);
+    legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';return;
+  }
+  const colors=['#d96b62','#4d5968','#858c96','#b4a79d','#6f7c72','#9b8585','#707070','#c0b8ae','#555d66','#aaa'];
+  let angle=-Math.PI/2;
+  rows.forEach(([name,val],i)=>{
+    const next=angle+(val/total)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.arc(W/2,H/2,W*.42,angle,next);ctx.closePath();
+    ctx.fillStyle=colors[i%colors.length];ctx.fill();angle=next;
+  });
+  ctx.beginPath();ctx.arc(W/2,H/2,W*.22,0,Math.PI*2);ctx.fillStyle='#f1f2f4';ctx.fill();
+  ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 19px -apple-system,sans-serif';
+  ctx.fillText('今月',W/2,H/2-8);
+  ctx.font='bold 21px -apple-system,sans-serif';
+  ctx.fillText('¥'+total.toLocaleString('ja-JP'),W/2,H/2+20);
+  legend.innerHTML=rows.map(([name,val],i)=>{
+    const pct=Math.round(val/total*100);
+    return `<div class="pie-row">
+      <span class="pie-dot" style="background:${colors[i%colors.length]}"></span>
+      <span>${esc(name)}</span><strong>${pct}%</strong>
+    </div>
+    <div class="note" style="margin-left:16px;margin-bottom:4px">${yen(val)}</div>`;
+  }).join('');
 }
 
 function toggleThresholdEdit(force){
@@ -653,7 +719,8 @@ function itemHTML(x){
   const refunded=(x.splits||[]).filter(s=>s.settled).reduce((sum,s)=>sum+Number(s.amount||0),0);
   const net=effectiveExpenseAmount(x);
   const refundNote=refunded>0?`実質負担 ${yen(net)}`:'';
-  const sub=[x.date,x.category,x.type,x.payment,x.memo,refundNote].filter(Boolean).map(esc).join(' · ');
+  const recurringNote=x.autoRecurring?'定期支出':(state.recurring.some(r=>r.sourceExpenseId===x.id)?'定期設定あり':'');
+  const sub=[x.date,x.category,x.type,x.payment,x.memo,recurringNote,refundNote].filter(Boolean).map(esc).join(' · ');
   const checked=selectedExpenseIds.has(x.id)?'checked':'';
   const checkbox=bulkMode?`<input class="bulk-check" type="checkbox" ${checked} onclick="event.stopPropagation();toggleSelectExpense('${esc(x.id)}')">`:'';
   const click=bulkMode?`toggleSelectExpense('${esc(x.id)}')`:`openEdit('${esc(x.id)}')`;

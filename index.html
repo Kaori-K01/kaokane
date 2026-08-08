@@ -155,7 +155,7 @@ input[type="date"]{
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.10.3</div>
+    <div class="badge">v0.10.4</div>
   </div>
 
   <section id="home" class="screen active">
@@ -283,7 +283,7 @@ input[type="date"]{
             <label>周期<select id="recurringUnit"><option value="monthly">月単位</option><option value="yearly">年単位</option></select></label>
             <label>間隔<input id="recurringEvery" type="number" min="1" value="1" inputmode="numeric"></label>
           </div>
-          <div class="note">例：毎月＝月単位・1、2か月ごと＝月単位・2、毎年＝年単位・1。</div>
+          <div class="note">例：毎月＝月単位・1、2か月ごと＝月単位・2、毎年＝年単位・1。次にカオカネを開いた時、未登録分を自動追加します。</div>
         </div>
         <div id="highWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
         <button class="btn full" type="submit">登録する</button>
@@ -503,14 +503,14 @@ input[type="date"]{
 </nav>
 
 
-<script src="./app.js?v=0.10.3"></script>
+<script src="./app.js?v=0.10.4"></script>
 
 
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.3', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.4', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
