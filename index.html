@@ -91,7 +91,7 @@ textarea{min-height:86px;resize:vertical}
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.4</div>
+    <div class="badge">v0.4.1</div>
   </div>
 
   <section id="home" class="screen active">
@@ -659,8 +659,34 @@ try{
 
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(console.error);
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.4.1', { updateViaCache: 'none' });
+      await reg.update();
+
+      if (reg.waiting) {
+        reg.waiting.postMessage({type:'SKIP_WAITING'});
+      }
+
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            nw.postMessage({type:'SKIP_WAITING'});
+          }
+        });
+      });
+
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        location.reload();
+      });
+    } catch (e) {
+      console.error('SW update failed', e);
+    }
   });
 }
 </script>
