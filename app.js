@@ -151,12 +151,6 @@ function bindCustomNumericKeypad(){
   document.addEventListener('click',handler);
 }
 function setup(){
-  const balanceModal=document.getElementById('balanceHistoryModal');
-  if(balanceModal){
-    balanceModal.addEventListener('click',e=>{
-      if(e.target===balanceModal)closeBalanceAdjustmentHistory();
-    });
-  }
   bindCustomNumericKeypad();
   if(el.editIncomeCategory) el.editIncomeCategory.innerHTML=incomeCategories.map(c=>`<option>${esc(c)}</option>`).join('');
   if(el.editIncomeForm) el.editIncomeForm.addEventListener('submit',saveIncomeEdit);
@@ -374,21 +368,24 @@ function recordBalanceAdjustment(target,before,after){
   });
   state.balanceAdjustments=arr.slice(-500);
 }
-function toggleBalanceAdjustmentHistory(force){
-  const modal=document.getElementById('balanceHistoryModal');
-  if(!modal)return;
-  const show=typeof force==='boolean'?force:modal.classList.contains('hidden');
-  if(show){
-    renderBalanceAdjustmentHistory();
-    modal.classList.remove('hidden');
-    document.body.style.overflow='hidden';
-  }else{
-    modal.classList.add('hidden');
-    document.body.style.overflow='';
-  }
+function openBalanceAdjustmentHistoryModal(){
+ const modal=document.getElementById('balanceHistoryModalV1095'),box=document.getElementById('balanceAdjustmentHistoryModalList');
+ if(!modal||!box)return;
+ const xs=state.balanceAdjustments.slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+ box.innerHTML=!xs.length?'<div class="card"><div class="note">まだ残高の手動修正履歴はありません。</div></div>':xs.map(x=>{
+  const name=x.target==='bank'?'生活口座':'現金',delta=Number(x.delta||0),deltaText=(delta>0?'+':'')+yen(delta);
+  return `<div class="balance-adjustment-row"><div class="balance-adjustment-head"><div class="balance-adjustment-target">${name}</div><div class="balance-adjustment-delta">${deltaText}</div></div><div class="balance-adjustment-meta">${formatAdjustmentDate(x.ts)}<br>${yen(x.before)} → ${yen(x.after)}</div></div>`;
+ }).join('');
+ modal.classList.remove('hidden');document.body.style.overflow='hidden';
 }
-function closeBalanceAdjustmentHistory(){
-  toggleBalanceAdjustmentHistory(false);
+function closeBalanceAdjustmentHistoryModal(){const m=document.getElementById('balanceHistoryModalV1095');if(m)m.classList.add('hidden');document.body.style.overflow='';}
+
+function toggleBalanceAdjustmentHistory(force){
+  const panel=el.balanceAdjustmentHistoryPanel;
+  if(!panel)return;
+  const show=typeof force==='boolean'?force:panel.classList.contains('hidden');
+  panel.classList.toggle('hidden',!show);
+  if(show)renderBalanceAdjustmentHistory();
 }
 function formatAdjustmentDate(ts){
   try{
@@ -397,7 +394,7 @@ function formatAdjustmentDate(ts){
   }catch{return ''}
 }
 function renderBalanceAdjustmentHistory(){
-  const box=document.getElementById('balanceAdjustmentHistoryList');
+  const box=el.balanceAdjustmentHistoryList;
   if(!box)return;
   const xs=state.balanceAdjustments.slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   if(!xs.length){
@@ -1123,7 +1120,7 @@ function updateBulkInfo(){
 }
 
 function bulkDelete(){
-  const ids=[...selectedExpenseIds,'balanceAdjustmentHistoryList','balanceHistoryModal'];
+  const ids=[...selectedExpenseIds,'balanceAdjustmentHistoryPanel','balanceAdjustmentHistoryList'];
   if(ids.length===0) return;
   if(!confirm(`${ids.length}件の支出をまとめて削除しますか？`)) return;
 
@@ -1449,7 +1446,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad,toggleBalanceAdjustmentHistory,closeBalanceAdjustmentHistory});
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad,toggleBalanceAdjustmentHistory,openBalanceAdjustmentHistoryModal,closeBalanceAdjustmentHistoryModal});
 
 try{
   localStorage.setItem('kaokane_test','ok');

@@ -9,12 +9,12 @@
   "description": "自分専用の家計管理Webアプリ",
   "icons": [
     {
-      "src": "./kaokane-icon-180-v1094.png",
+      "src": "./kaokane-icon-180-v1095.png",
       "sizes": "180x180",
       "type": "image/png"
     },
     {
-      "src": "./kaokane-icon-512-v1094.png",
+      "src": "./kaokane-icon-512-v1095.png",
       "sizes": "512x512",
       "type": "image/png"
     }
