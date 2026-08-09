@@ -58,13 +58,16 @@ function isSignedNumericInput(input){
   return input && (input.id==='bankInput' || input.id==='cashInput');
 }
 function openKaokaneKeypad(input){
-  if(!input)return;
+  if(!input||!el.kaokaneKeypadBackdrop)return;
   activeNumericInput=input;
   keypadBuffer=String(input.value||'');
   if(keypadBuffer==='0')keypadBuffer='';
-  el.kaokaneKeypadSign.classList.toggle('hidden',!isSignedNumericInput(input));
+  if(el.kaokaneKeypadSign){
+    el.kaokaneKeypadSign.classList.toggle('hidden',!isSignedNumericInput(input));
+  }
   updateKaokaneKeypadDisplay();
   el.kaokaneKeypadBackdrop.classList.remove('hidden');
+  document.body.style.overflow='hidden';
 }
 function updateKaokaneKeypadDisplay(){
   if(!el.kaokaneKeypadValue)return;
@@ -102,6 +105,7 @@ function finishKaokaneKeypad(){
   activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
   activeNumericInput.dispatchEvent(new Event('change',{bubbles:true}));
   el.kaokaneKeypadBackdrop.classList.add('hidden');
+  document.body.style.overflow='';
   activeNumericInput=null;
 }
 function closeKaokaneKeypad(event){
@@ -110,10 +114,20 @@ function closeKaokaneKeypad(event){
 }
 function bindCustomNumericKeypad(){
   document.querySelectorAll('input[type="number"]').forEach(input=>{
-    input.setAttribute('readonly','readonly');
+    input.removeAttribute('readonly');
+    input.setAttribute('inputmode','none');
     input.classList.add('kaokane-numeric-input');
-    input.addEventListener('click',()=>openKaokaneKeypad(input));
-    input.addEventListener('focus',()=>{
+
+    const open=(e)=>{
+      if(e)e.preventDefault();
+      openKaokaneKeypad(input);
+    };
+
+    input.addEventListener('pointerdown',open,{passive:false});
+    input.addEventListener('touchstart',open,{passive:false});
+    input.addEventListener('click',open);
+    input.addEventListener('focus',(e)=>{
+      e.preventDefault();
       input.blur();
       openKaokaneKeypad(input);
     });
