@@ -358,31 +358,7 @@ function applyHomeOrder(){
   state.homeOrder.forEach(k=>{if(map[k])home.appendChild(map[k]);});
 }
 function renderHomeCategoryPie(){
-  const canvas=el.homeCategoryPie,legend=el.homeCategoryPieLegend;if(!canvas||!legend)return;
-  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;ctx.clearRect(0,0,W,H);
-  const current=monthKey(today()),totals={};
-  state.expenses.filter(x=>!x.unorganized&&monthKey(x.date)===current).forEach(x=>{
-    totals[x.category]=(totals[x.category]||0)+effectiveExpenseAmount(x);
-  });
-  const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const total=rows.reduce((s,[,v])=>s+v,0);
-  if(!total){
-    ctx.fillStyle='#888';ctx.font='22px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText('データなし',W/2,H/2);
-    legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';return;
-  }
-  const colors=['#d96b62','#4d5968','#858c96','#b4a79d','#6f7c72','#9b8585','#707070','#c0b8ae','#555d66','#aaa'];
-  let angle=-Math.PI/2;
-  rows.forEach(([name,val],i)=>{
-    const next=angle+(val/total)*Math.PI*2;
-    ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.arc(W/2,H/2,W*.42,angle,next);ctx.closePath();
-    ctx.fillStyle=colors[i%colors.length];ctx.fill();angle=next;
-  });
-  ctx.beginPath();ctx.arc(W/2,H/2,W*.22,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
-  ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 19px -apple-system,sans-serif';ctx.fillText('今月',W/2,H/2-8);
-  ctx.font='bold 21px -apple-system,sans-serif';ctx.fillText('¥'+total.toLocaleString('ja-JP'),W/2,H/2+20);
-  legend.innerHTML=rows.map(([name,val],i)=>`
-    <div class="pie-row"><span class="pie-dot" style="background:${colors[i%colors.length]}"></span><span>${esc(name)}</span><strong>${Math.round(val/total*100)}%</strong></div>
-    <div class="note" style="margin-left:16px;margin-bottom:4px">${yen(val)}</div>`).join('');
+  drawSmartPie(el.homeCategoryPie,el.homeCategoryPieLegend,'#fff');
 }
 
 function tagHomeBlocks(){
@@ -570,13 +546,14 @@ function renderFinanceChart(){
       if(candidates.length) return Number(candidates[candidates.length-1].total||0);
       return null;
     });
-    // If current month has no snapshot, use current assets.
+    // Current month always reflects live balances, even if an older snapshot exists.
     const current=monthKey(today());
     const idx=months.indexOf(current);
-    if(idx>=0 && values[idx]==null){
-      const a=state.assets;values[idx]=Number(a.bank||0)+Number(a.cash||0);
+    if(idx>=0){
+      const a=state.assets;
+      values[idx]=Number(a.bank||0)+Number(a.cash||0);
     }
-    note='残高＝生活口座＋現金の合算（各月の最終記録）';
+    note='残高＝生活口座＋現金の合算（今月は現在残高）';
   }
   el.chartNote.textContent=note;
 
@@ -665,40 +642,81 @@ function renderFinanceChart(){
   }
 }
 
-function renderCategoryPie(){
-  const canvas=el.categoryPie,legend=el.categoryPieLegend;if(!canvas||!legend)return;
-  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;ctx.clearRect(0,0,W,H);
+
+function prepareHiDPICanvas(canvas,cssSize){
+  const dpr=Math.max(1,Math.min(3,window.devicePixelRatio||1));
+  const size=cssSize||132;
+  canvas.style.width=size+'px';
+  canvas.style.height=size+'px';
+  canvas.width=Math.round(size*dpr);
+  canvas.height=Math.round(size*dpr);
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,W:size,H:size};
+}
+function pieDataForCurrentMonth(){
   const current=monthKey(today()),totals={};
   state.expenses.filter(x=>!x.unorganized&&monthKey(x.date)===current).forEach(x=>{
     totals[x.category]=(totals[x.category]||0)+effectiveExpenseAmount(x);
   });
   const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const total=rows.reduce((s,[,v])=>s+v,0);
+  return {rows,total:rows.reduce((s,[,v])=>s+v,0)};
+}
+function drawSmartPie(canvas,legend,centerBg='#f1f2f4'){
+  if(!canvas||!legend)return;
+  const {ctx,W,H}=prepareHiDPICanvas(canvas,132);
+  ctx.clearRect(0,0,W,H);
+  const {rows,total}=pieDataForCurrentMonth();
   if(!total){
-    ctx.fillStyle='#888';ctx.font='22px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillStyle='#8b8f96';
+    ctx.font='600 12px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
     ctx.fillText('データなし',W/2,H/2);
-    legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';return;
+    legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';
+    return;
   }
-  const colors=['#d96b62','#4d5968','#858c96','#b4a79d','#6f7c72','#9b8585','#707070','#c0b8ae','#555d66','#aaa'];
+  const colors=['#e2766d','#525b68','#8e96a0','#b3a79e','#738177','#a08a8a','#6d7075','#c3bbb2','#59616a','#aaaeb3'];
+  const cx=W/2,cy=H/2,outer=W*.46,inner=W*.29;
   let angle=-Math.PI/2;
   rows.forEach(([name,val],i)=>{
     const next=angle+(val/total)*Math.PI*2;
-    ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.arc(W/2,H/2,W*.42,angle,next);ctx.closePath();
-    ctx.fillStyle=colors[i%colors.length];ctx.fill();angle=next;
+    ctx.beginPath();
+    ctx.arc(cx,cy,outer,angle,next);
+    ctx.arc(cx,cy,inner,next,angle,true);
+    ctx.closePath();
+    ctx.fillStyle=colors[i%colors.length];
+    ctx.fill();
+    angle=next;
   });
-  ctx.beginPath();ctx.arc(W/2,H/2,W*.22,0,Math.PI*2);ctx.fillStyle='#f1f2f4';ctx.fill();
-  ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 19px -apple-system,sans-serif';
-  ctx.fillText('今月',W/2,H/2-8);
-  ctx.font='bold 21px -apple-system,sans-serif';
-  ctx.fillText('¥'+total.toLocaleString('ja-JP'),W/2,H/2+20);
+  ctx.beginPath();
+  ctx.arc(cx,cy,inner-1,0,Math.PI*2);
+  ctx.fillStyle=centerBg;
+  ctx.fill();
+
+  ctx.fillStyle='#202124';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font='700 10px -apple-system,BlinkMacSystemFont,sans-serif';
+  ctx.fillText('今月',cx,cy-9);
+  ctx.font='800 13px -apple-system,BlinkMacSystemFont,sans-serif';
+  const totalLabel='¥'+total.toLocaleString('ja-JP');
+  ctx.fillText(totalLabel.length>10?'合計':totalLabel,cx,cy+9);
+
   legend.innerHTML=rows.map(([name,val],i)=>{
     const pct=Math.round(val/total*100);
     return `<div class="pie-row">
       <span class="pie-dot" style="background:${colors[i%colors.length]}"></span>
-      <span>${esc(name)}</span><strong>${pct}%</strong>
-    </div>
-    <div class="note" style="margin-left:16px;margin-bottom:4px">${yen(val)}</div>`;
+      <span class="pie-name">${esc(name)}</span>
+      <span>
+        <span class="pie-percent">${pct}%</span>
+        <span class="pie-value"> · ${yen(val)}</span>
+      </span>
+    </div>`;
   }).join('');
+}
+function renderCategoryPie(){
+  drawSmartPie(el.categoryPie,el.categoryPieLegend,'#f1f2f4');
 }
 
 function toggleThresholdEdit(force){
