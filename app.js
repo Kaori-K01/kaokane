@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const categories = ['食費','外食','住居','通信費','交通費','車','日用品','衣服・美容','医療','交際費','勉強・仕事','サブスク','税金・保険','その他'];
-const payments = ['現金','Amazonカード','dカード','PayPay','イオンカード','d払い','銀行口座','その他'];
+const payments = ['dカード','Amazonカード','イオンカード','d払い','PayPay','銀行口座','現金','その他'];
 const incomeCategories = ['給与','賞与','臨時収入','返金','その他'];
 
 const ids = [
@@ -104,7 +104,8 @@ el.expenseForm.addEventListener('submit',e=>{
   if(amt>=state.threshold && !mem){ alert('高額支出はメモ必須です。何を購入したか入力してください。'); return; }
 
   const item={id:uid(),amount:amt,category:el.category.value,type:expenseType,payment:el.payment.value,
-    date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,createdAt:new Date().toISOString(), splits:getSplitData(false)};
+    date:el.date.value||today(),memo:mem,approx:el.approx.checked,unorganized:false,createdAt:new Date().toISOString(),
+    splits:getSplitData(false),balanceTarget:assetTargetForPayment(el.payment.value)};
   const xs=state.expenses; xs.push(item); state.expenses=xs;
 
   applyExpenseBalance(item.payment,amt,-1);
@@ -137,16 +138,17 @@ el.editExpenseForm.addEventListener('submit',e=>{
   if(amt>=state.threshold && !mem){ alert('高額支出はメモ必須です。何を購入したか入力してください。'); return; }
 
   // Undo old balance effect first.
-  applyExpenseBalance(old.payment,old.amount,+1);
+  applyExpenseBalance(old.payment,old.amount,+1,old.balanceTarget||assetTargetForPayment(old.payment));
 
   const updated={
     ...old, amount:amt, category:el.editCategory.value, type:editExpenseType, payment:el.editPayment.value,
     date:el.editDate.value||today(), memo:mem, approx:el.editApprox.checked, unorganized:false,
-    updatedAt:new Date().toISOString(), splits:getSplitData(true)
+    updatedAt:new Date().toISOString(), splits:getSplitData(true),
+    balanceTarget:assetTargetForPayment(el.editPayment.value)
   };
 
   // Apply the edited balance effect.
-  applyExpenseBalance(updated.payment,amt,-1);
+  applyExpenseBalance(updated.payment,amt,-1,updated.balanceTarget);
 
   xs[i]=updated; state.expenses=xs;
   render(); go('history');
@@ -177,7 +179,7 @@ function deleteCurrentExpense(){
   const x=xs[i];
   if(!confirm(`${yen(x.amount)} の支出を削除しますか？`)) return;
 
-  applyExpenseBalance(x.payment,x.amount,+1);
+  applyExpenseBalance(x.payment,x.amount,+1,x.balanceTarget||assetTargetForPayment(x.payment));
   xs.splice(i,1); state.expenses=xs;
   render(); go('history');
 }
@@ -236,7 +238,7 @@ function finishArcade(){
   if(!arcadeSum){ cancelArcade(); return; }
   const xs=state.expenses;
   xs.push({id:uid(),amount:arcadeSum,category:'交際費',type:'娯楽',payment:'現金',date:today(),
-    memo:'ゲームセンター',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[]});
+    memo:'ゲームセンター',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[],balanceTarget:'cash'});
   state.expenses=xs;
   applyExpenseBalance('現金',arcadeSum,-1);
   arcadeSum=0;
@@ -280,12 +282,12 @@ function resetAllData(){
 function assetTargetForPayment(payment){
   return state.paymentMap[payment] || 'none';
 }
-function applyExpenseBalance(payment,amount,direction=-1){
-  const target=assetTargetForPayment(payment);
+function applyExpenseBalance(payment,amount,direction=-1,explicitTarget=null){
+  const target=explicitTarget || assetTargetForPayment(payment);
   if(target==='none') return;
   const a=state.assets;
-  if(target==='cash') a.cash=Math.max(0,Number(a.cash||0)+(direction*Number(amount||0)));
-  if(target==='bank') a.bank=Math.max(0,Number(a.bank||0)+(direction*Number(amount||0)));
+  if(target==='cash') a.cash=Number(a.cash||0)+(direction*Number(amount||0));
+  if(target==='bank') a.bank=Number(a.bank||0)+(direction*Number(amount||0));
   state.assets=a;
   recordBalanceSnapshot('auto');
 }
@@ -412,7 +414,7 @@ function syncRecurringRuleFromExpense(item,enabled,unit,every){
 function processRecurringExpenses(){
   const rules=state.recurring;if(!rules.length)return;const xs=state.expenses;let changed=false;
   rules.forEach(r=>{if(!r.active)return;let guard=0;while(r.nextDate<=today()&&guard++<60){
-    const item={id:uid(),amount:Number(r.amount),category:r.category,type:r.type,payment:r.payment,date:r.nextDate,memo:r.memo||'',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[],recurringRuleId:r.id,autoRecurring:true};
+    const item={id:uid(),amount:Number(r.amount),category:r.category,type:r.type,payment:r.payment,date:r.nextDate,memo:r.memo||'',approx:false,unorganized:false,createdAt:new Date().toISOString(),splits:[],recurringRuleId:r.id,autoRecurring:true,balanceTarget:assetTargetForPayment(r.payment)};
     xs.push(item);applyExpenseBalance(item.payment,item.amount,-1);r.nextDate=nextRecurringDate(r.nextDate,r.unit,Number(r.every||1));changed=true;
   }});
   if(changed){state.expenses=xs;state.recurring=rules;}
@@ -423,8 +425,8 @@ function toggleTransferPanel(force){
 function executeTransfer(){
   const amt=Number(el.transferAmount.value||0);if(!amt||amt<=0){alert('金額を入力してください。');return;}
   const a=state.assets;
-  if(el.transferDirection.value==='bankToCash'){if(amt>Number(a.bank||0)){alert('生活口座残高を超えています。');return;}a.bank-=amt;a.cash=Number(a.cash||0)+amt;}
-  else{if(amt>Number(a.cash||0)){alert('現金残高を超えています。');return;}a.cash-=amt;a.bank=Number(a.bank||0)+amt;}
+  if(el.transferDirection.value==='bankToCash'){a.bank=Number(a.bank||0)-amt;a.cash=Number(a.cash||0)+amt;}
+  else{a.cash=Number(a.cash||0)-amt;a.bank=Number(a.bank||0)+amt;}
   state.assets=a;recordBalanceSnapshot('transfer');el.transferAmount.value='';renderAssets();renderFinanceChart();toggleTransferPanel(false);
 }
 function addPaybackReminder(){
@@ -470,6 +472,7 @@ function migrateDataSafely(){
     if(!Array.isArray(x.splits)){x.splits=[];changed=true;}
     if(typeof x.approx!=='boolean'){x.approx=false;changed=true;}
     if(typeof x.unorganized!=='boolean'){x.unorganized=false;changed=true;}
+    if(!('balanceTarget' in x)){x.balanceTarget=assetTargetForPayment(x.payment);changed=true;}
   });
   if(changed) state.expenses=xs;
 
@@ -826,7 +829,7 @@ function bulkDelete(){
 
   const xs=state.expenses;
   const deleting=xs.filter(x=>selectedExpenseIds.has(x.id));
-  deleting.forEach(x=>applyExpenseBalance(x.payment,x.amount,+1));
+  deleting.forEach(x=>applyExpenseBalance(x.payment,x.amount,+1,x.balanceTarget||assetTargetForPayment(x.payment)));
 
   state.expenses=xs.filter(x=>!selectedExpenseIds.has(x.id));
   selectedExpenseIds.clear();
@@ -932,11 +935,12 @@ function renderMonthlyHistory(){
     el.monthlyExpenseBreakdown.classList.add('hidden');
     el.monthlyListTitle.textContent='収入一覧';
     el.monthlyHistoryList.innerHTML=xs.length?xs.map(x=>`
-      <div class="history-item" onclick="openIncomeEdit('${x.id}')">
-        <div class="history-main">
-          <div class="history-amount">＋${yen(x.amount)}</div>
-          <div class="history-sub">${[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ')}</div>
+      <div class="item" onclick="openIncomeEdit('${x.id}')" style="cursor:pointer">
+        <div class="item-main">
+          <div class="item-title">${esc(x.category||'収入')}</div>
+          <div class="item-sub">${[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ')}</div>
         </div>
+        <div class="item-amount">＋${yen(x.amount)}</div>
       </div>`).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の収入はありません。</div>`;
     return;
   }
@@ -984,7 +988,7 @@ function deleteSelectedIncomes(){
   state.incomes=state.incomes.filter(x=>!selectedIncomeIds.has(x.id));
   // Income had increased bank when recorded, so deletion reverses it.
   if(total>0){
-    const a=state.assets;a.bank=Math.max(0,Number(a.bank||0)-total);state.assets=a;recordBalanceSnapshot('auto');
+    const a=state.assets;a.bank=Number(a.bank||0)-total;state.assets=a;recordBalanceSnapshot('auto');
   }
   selectedIncomeIds.clear();incomeBulkMode=false;render();
 }
@@ -1005,7 +1009,7 @@ function saveIncomeEdit(e){
   xs[i]={...old,amount,category:el.editIncomeCategory.value,date:el.editIncomeDate.value,memo:el.editIncomeMemo.value.trim()};
   state.incomes=xs;
   if(diff!==0){
-    const a=state.assets;a.bank=Math.max(0,Number(a.bank||0)+diff);state.assets=a;recordBalanceSnapshot('auto');
+    const a=state.assets;a.bank=Number(a.bank||0)+diff;state.assets=a;recordBalanceSnapshot('auto');
   }
   editingIncomeId=null;render();go('history');
 }
@@ -1024,12 +1028,16 @@ function renderHistory(){
       </div>
       ${xs.length?xs.map(x=>{
         const checked=selectedIncomeIds.has(x.id)?'checked':'';
-        return `<div class="history-item" onclick="${incomeBulkMode?`toggleIncomeSelected('${x.id}')`:`openIncomeEdit('${x.id}')`}">
-          ${incomeBulkMode?`<input class="income-select-box" type="checkbox" ${checked} onclick="event.stopPropagation();toggleIncomeSelected('${x.id}')">`:''}
-          <div class="history-main">
-            <div class="history-amount">＋${yen(x.amount)}</div>
-            <div class="history-sub">${[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ')}</div>
+        const click=incomeBulkMode?`toggleIncomeSelected('${x.id}')`:`openIncomeEdit('${x.id}')`;
+        const checkbox=incomeBulkMode?`<input class="bulk-check" type="checkbox" ${checked} onclick="event.stopPropagation();toggleIncomeSelected('${x.id}')">`:'';
+        const sub=[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ');
+        return `<div class="item ${incomeBulkMode?'selecting':''}" onclick="${click}" style="cursor:pointer">
+          ${checkbox}
+          <div class="item-main">
+            <div class="item-title">${esc(x.category||'収入')}</div>
+            <div class="item-sub">${sub}</div>
           </div>
+          <div class="item-amount">＋${yen(x.amount)}</div>
         </div>`;
       }).join(''):'<div class="card"><div class="note">収入がありません。</div></div>'}
       ${incomeBulkMode&&selectedIncomeIds.size?`<button class="btn danger full" style="margin-top:12px" onclick="deleteSelectedIncomes()">選択した${selectedIncomeIds.size}件を削除</button>`:''}`;
