@@ -564,31 +564,41 @@ function renderFinanceChart(){
   const numeric=values.filter(v=>v!=null);
   const rawMax=Math.max(0,...numeric);
   const rawMin=chartMode==='balance'&&numeric.length?Math.min(...numeric):0;
-  const niceNumber=(value,round)=>{
-    if(!isFinite(value)||value<=0)return 1;
-    const exponent=Math.floor(Math.log10(value));
-    const fraction=value/Math.pow(10,exponent);
-    let niceFraction;
-    if(round){
-      niceFraction=fraction<1.5?1:fraction<3?2:fraction<7?5:10;
-    }else{
-      niceFraction=fraction<=1?1:fraction<=2?2:fraction<=5?5:10;
+
+  function currencyStep(range){
+    const target=Math.max(1,Math.abs(range)/4);
+    const power=Math.pow(10,Math.floor(Math.log10(target)));
+    const n=target/power;
+    const unit=n<=1?1:n<=2?2:n<=5?5:10;
+    return unit*power;
+  }
+
+  let min=0,max=0,step=1;
+  if(chartMode==='balance'){
+    // Residual balances often cluster tightly; anchor to clean currency levels.
+    const spread=Math.max(1,rawMax-rawMin);
+    step=currencyStep(spread);
+    // If only one/few balance points exist, base the step on the balance magnitude too.
+    if(spread < Math.max(1000,rawMax*0.02)){
+      step=currencyStep(Math.max(1000,rawMax*0.08));
     }
-    return niceFraction*Math.pow(10,exponent);
-  };
-  const niceBounds=(lo,hi)=>{
-    if(hi<=lo)hi=lo+1;
-    const range=niceNumber(hi-lo,false);
-    const step=niceNumber(range/4,true);
-    return {
-      min: chartMode==='balance' ? Math.floor(lo/step)*step : 0,
-      max: Math.ceil(hi/step)*step || step,
-      step
-    };
-  };
-  const bounds=niceBounds(rawMin,Math.max(1,rawMax));
-  const min=bounds.min,max=bounds.max,step=bounds.step;
-  const padL=76,padR=24,padT=28,padB=54;
+    min=Math.floor(rawMin/step)*step;
+    max=Math.ceil(rawMax/step)*step;
+    if(max===min)max=min+step*4;
+    // Keep roughly 3–6 grid intervals.
+    while((max-min)/step>6)step*=2;
+    min=Math.floor(rawMin/step)*step;
+    max=Math.ceil(rawMax/step)*step;
+  }else{
+    step=currencyStep(Math.max(1,rawMax));
+    min=0;
+    max=Math.ceil(rawMax/step)*step;
+    if(max===0)max=step*4;
+    while(max/step>6)step*=2;
+    max=Math.ceil(rawMax/step)*step || step*4;
+  }
+
+  const padL=82,padR=24,padT=28,padB=54;
   const gw=W-padL-padR, gh=H-padT-padB;
 
   // axes/grid
@@ -751,6 +761,13 @@ function setHistoryKind(kind){
   el.expenseFilters.classList.toggle('hidden',kind!=='expense');
   el.bulkModeBtn.classList.toggle('hidden',kind!=='expense');
   renderHistory();
+
+  if(kind==='income'){
+    bulkMode=false; selectedExpenseIds.clear();
+  }else{
+    incomeBulkMode=false; selectedIncomeIds.clear();
+  }
+  updateHistoryBulkButton();
 }
 function toggleSplitEditor(){
   const willShow=el.splitEditor.classList.contains('hidden');
@@ -940,7 +957,7 @@ function renderMonthlyHistory(){
           <div class="item-title">${esc(x.category||'収入')}</div>
           <div class="item-sub">${[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ')}</div>
         </div>
-        <div class="item-amount">＋${yen(x.amount)}</div>
+        <div class="item-amount">${yen(x.amount)}</div>
       </div>`).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の収入はありません。</div>`;
     return;
   }
@@ -970,6 +987,19 @@ function renderMonthlyHistory(){
       </div>
     </div>`;
   }).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の支出はありません。</div>`;
+}
+function toggleHistoryBulkMode(){
+  if(historyKind==='income'){
+    toggleIncomeBulkMode();
+  }else{
+    toggleBulkMode();
+  }
+  updateHistoryBulkButton();
+}
+function updateHistoryBulkButton(){
+  if(!el.bulkModeBtn)return;
+  const active=historyKind==='income'?incomeBulkMode:bulkMode;
+  el.bulkModeBtn.textContent=active?'完了':'複数選択';
 }
 function toggleIncomeBulkMode(){
   incomeBulkMode=!incomeBulkMode;
@@ -1015,6 +1045,7 @@ function saveIncomeEdit(e){
 }
 
 function renderHistory(){
+  updateHistoryBulkButton();
   el.histExpenseBtn.classList.toggle('active',historyKind==='expense');
   el.histIncomeBtn.classList.toggle('active',historyKind==='income');
   el.expenseFilters.classList.toggle('hidden',historyKind!=='expense');
@@ -1023,9 +1054,6 @@ function renderHistory(){
   if(historyKind==='income'){
     const xs=state.incomes.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''));
     el.historyList.innerHTML=`
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-        <button class="mini-action" onclick="toggleIncomeBulkMode()">${incomeBulkMode?'完了':'複数選択'}</button>
-      </div>
       ${xs.length?xs.map(x=>{
         const checked=selectedIncomeIds.has(x.id)?'checked':'';
         const click=incomeBulkMode?`toggleIncomeSelected('${x.id}')`:`openIncomeEdit('${x.id}')`;
@@ -1037,7 +1065,7 @@ function renderHistory(){
             <div class="item-title">${esc(x.category||'収入')}</div>
             <div class="item-sub">${sub}</div>
           </div>
-          <div class="item-amount">＋${yen(x.amount)}</div>
+          <div class="item-amount">${yen(x.amount)}</div>
         </div>`;
       }).join(''):'<div class="card"><div class="note">収入がありません。</div></div>'}
       ${incomeBulkMode&&selectedIncomeIds.size?`<button class="btn danger full" style="margin-top:12px" onclick="deleteSelectedIncomes()">選択した${selectedIncomeIds.size}件を削除</button>`:''}`;
@@ -1138,7 +1166,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind
 });
 
 try{
