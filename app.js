@@ -34,6 +34,10 @@ const state = {
   set recurring(v){ localStorage.setItem('kaokane_recurring',JSON.stringify(v)) },
   get settlements(){ try{return JSON.parse(localStorage.getItem('kaokane_settlements')||'[]')}catch{return []} },
   set settlements(v){ localStorage.setItem('kaokane_settlements',JSON.stringify(v)) },
+  get balanceAdjustments(){
+    try{return JSON.parse(localStorage.getItem('kaokane_balance_adjustments')||'[]')}catch{return []}
+  },
+  set balanceAdjustments(v){ localStorage.setItem('kaokane_balance_adjustments',JSON.stringify(v)) },
   get homeOrder(){
     const defaults=['summary','expenseEntry','income','settlement','categoryPie','recentExpense'];
     try{
@@ -348,13 +352,72 @@ function cancelArcade(){
   go('home');
 }
 
+
+function recordBalanceAdjustment(target,before,after){
+  before=Number(before||0); after=Number(after||0);
+  if(before===after)return;
+  const arr=state.balanceAdjustments;
+  arr.push({
+    id:uid(),
+    target,
+    before,
+    after,
+    delta:after-before,
+    date:today(),
+    ts:new Date().toISOString()
+  });
+  state.balanceAdjustments=arr.slice(-500);
+}
+function toggleBalanceAdjustmentHistory(force){
+  const panel=el.balanceAdjustmentHistoryPanel;
+  if(!panel)return;
+  const show=typeof force==='boolean'?force:panel.classList.contains('hidden');
+  panel.classList.toggle('hidden',!show);
+  if(show)renderBalanceAdjustmentHistory();
+}
+function formatAdjustmentDate(ts){
+  try{
+    const d=new Date(ts);
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }catch{return ''}
+}
+function renderBalanceAdjustmentHistory(){
+  const box=el.balanceAdjustmentHistoryList;
+  if(!box)return;
+  const xs=state.balanceAdjustments.slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  if(!xs.length){
+    box.innerHTML='<div class="note">まだ残高の手動修正履歴はありません。</div>';
+    return;
+  }
+  box.innerHTML=xs.map(x=>{
+    const name=x.target==='bank'?'生活口座':'現金';
+    const delta=Number(x.delta||0);
+    const deltaText=(delta>0?'+':'')+yen(delta);
+    return `<div class="balance-adjustment-row">
+      <div class="balance-adjustment-head">
+        <div class="balance-adjustment-target">${name}</div>
+        <div class="balance-adjustment-delta">${deltaText}</div>
+      </div>
+      <div class="balance-adjustment-meta">
+        ${formatAdjustmentDate(x.ts)}<br>
+        ${yen(x.before)} → ${yen(x.after)}
+      </div>
+    </div>`;
+  }).join('');
+}
 function updateBank(){
-  const a=state.assets; a.bank=Number(el.bankInput.value||0); a.bankUpdated=today(); state.assets=a;
-  el.bankInput.value=''; recordBalanceSnapshot('manual'); renderAssets(); toggleBalanceAdjust(false);
+  const a=state.assets;
+  const before=Number(a.bank||0), after=Number(el.bankInput.value||0);
+  a.bank=after; a.bankUpdated=today(); state.assets=a;
+  recordBalanceAdjustment('bank',before,after);
+  el.bankInput.value=''; recordBalanceSnapshot('manual'); renderAssets(); renderBalanceAdjustmentHistory(); toggleBalanceAdjust(false);
 }
 function updateCash(){
-  const a=state.assets; a.cash=Number(el.cashInput.value||0); state.assets=a;
-  el.cashInput.value=''; recordBalanceSnapshot('manual'); renderAssets(); toggleBalanceAdjust(false);
+  const a=state.assets;
+  const before=Number(a.cash||0), after=Number(el.cashInput.value||0);
+  a.cash=after; state.assets=a;
+  recordBalanceAdjustment('cash',before,after);
+  el.cashInput.value=''; recordBalanceSnapshot('manual'); renderAssets(); renderBalanceAdjustmentHistory(); toggleBalanceAdjust(false);
 }
 function saveThreshold(){
   state.threshold=Math.max(1000,Number(el.thresholdInput.value||10000));
@@ -601,7 +664,12 @@ function togglePaymentMapPanel(force){
 function toggleAnalytics(force){
   const show=typeof force==='boolean'?force:el.analyticsPanel.classList.contains('hidden');
   el.analyticsPanel.classList.toggle('hidden',!show);
-  if(show) setTimeout(renderFinanceChart,60);
+  if(show){
+    setTimeout(()=>{
+      renderFinanceChart();
+      renderCategoryPie();
+    },60);
+  }
 }
 function setChartMode(mode){
   chartMode=mode;
@@ -1040,7 +1108,7 @@ function updateBulkInfo(){
 }
 
 function bulkDelete(){
-  const ids=[...selectedExpenseIds];
+  const ids=[...selectedExpenseIds,'balanceAdjustmentHistoryPanel','balanceAdjustmentHistoryList'];
   if(ids.length===0) return;
   if(!confirm(`${ids.length}件の支出をまとめて削除しますか？`)) return;
 
@@ -1366,7 +1434,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad});
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad,toggleBalanceAdjustmentHistory});
 
 try{
   localStorage.setItem('kaokane_test','ok');
