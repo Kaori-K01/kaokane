@@ -150,7 +150,59 @@ function bindCustomNumericKeypad(){
   document.addEventListener('touchstart',handler,{passive:false});
   document.addEventListener('click',handler);
 }
+
+function formatBalanceHistoryDateV1096(ts){
+  try{
+    const d=new Date(ts);
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }catch{return ''}
+}
+function renderBalanceHistoryV1096(){
+  const list=document.getElementById('balanceHistoryListV1096');
+  const status=document.getElementById('balanceHistoryStatusV1096');
+  if(!list||!status)return;
+  const xs=state.balanceAdjustments.slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  status.textContent=xs.length?`${xs.length}件の修正履歴`:'まだ修正履歴はありません。';
+  if(!xs.length){
+    list.innerHTML='<div class="balance-history-entry-v1096"><div class="note">生活口座または現金を手動修正すると、ここに記録されます。</div></div>';
+    return;
+  }
+  list.innerHTML=xs.map(x=>{
+    const name=x.target==='bank'?'生活口座':'現金';
+    const delta=Number(x.delta||0);
+    const diff=(delta>0?'+':'')+yen(delta);
+    return `<div class="balance-history-entry-v1096">
+      <div class="balance-history-entry-top-v1096"><span>${name}</span><span>${diff}</span></div>
+      <div class="balance-history-entry-meta-v1096">${formatBalanceHistoryDateV1096(x.ts)}<br>${yen(Number(x.before||0))} → ${yen(Number(x.after||0))}</div>
+    </div>`;
+  }).join('');
+}
+function openBalanceHistoryV1096(){
+  const modal=document.getElementById('balanceHistoryModalV1096');
+  if(!modal)return;
+  renderBalanceHistoryV1096();
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden','false');
+  document.body.style.overflow='hidden';
+}
+function closeBalanceHistoryV1096(){
+  const modal=document.getElementById('balanceHistoryModalV1096');
+  if(!modal)return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden','true');
+  document.body.style.overflow='';
+}
+function bindBalanceHistoryV1096(){
+  const openBtn=document.getElementById('balanceHistoryOpenBtn');
+  const closeBtn=document.getElementById('balanceHistoryCloseBtn');
+  const modal=document.getElementById('balanceHistoryModalV1096');
+  if(openBtn)openBtn.addEventListener('click',openBalanceHistoryV1096);
+  if(closeBtn)closeBtn.addEventListener('click',closeBalanceHistoryV1096);
+  if(modal)modal.addEventListener('click',e=>{if(e.target===modal)closeBalanceHistoryV1096();});
+}
+
 function setup(){
+  bindBalanceHistoryV1096();
   bindCustomNumericKeypad();
   if(el.editIncomeCategory) el.editIncomeCategory.innerHTML=incomeCategories.map(c=>`<option>${esc(c)}</option>`).join('');
   if(el.editIncomeForm) el.editIncomeForm.addEventListener('submit',saveIncomeEdit);
