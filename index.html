@@ -150,7 +150,7 @@ input[type="date"]{
 .pie-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(125px,.75fr);gap:12px;align-items:center;margin-top:16px}
 .pie-legend{font-size:11px;line-height:1.55}.pie-row{display:grid;grid-template-columns:10px 1fr auto;gap:6px;align-items:center;margin:5px 0}.pie-dot{width:8px;height:8px;border-radius:50%}
 
-/* v0.10.9.1 */
+/* v0.10.9.2 */
 .home-sort-list{display:grid;gap:8px;margin-top:10px}
 .home-sort-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#f1f2f4;border:1px solid #d7d9dd;border-radius:12px;padding:10px 12px}
 .home-sort-row strong{font-size:13px}
@@ -158,7 +158,7 @@ input[type="date"]{
 .income-select-box{width:22px;height:22px}
 .split-detail-toggle{margin-top:10px;border:1px solid var(--line);background:#f5f5f6;border-radius:12px;padding:11px 12px;font-weight:800;font-size:12px;width:100%;text-align:left}
 
-/* v0.10.9.1 analysis / pie refinements */
+/* v0.10.9.2 analysis / pie refinements */
 #analyticsPanel{padding-bottom:14px}
 #analyticsPanel .chart-wrap{margin-bottom:0}
 #analyticsPanel .pie-layout{margin-top:10px}
@@ -205,7 +205,7 @@ input[type="date"]{
   .pie-layout canvas{width:118px !important;height:118px !important}
 }
 
-/* v0.10.9.1 */
+/* v0.10.9.2 */
 #splitEditor,#editSplitEditor{
   background:#f1f2f4;
   border:1px solid #d7d9dd;
@@ -231,7 +231,7 @@ input[type="date"]{
   color:#222;
 }
 
-/* v0.10.9.1 monthly history */
+/* v0.10.9.2 monthly history */
 .monthly-history-header{display:flex;align-items:center;gap:10px}
 .monthly-history-header h1{margin:0;font-size:22px}
 .monthly-picker-card{padding:14px}
@@ -341,7 +341,7 @@ input[type="date"]{
   font-size:13px;
 }
 
-/* v0.10.9.1 compact category breakdown */
+/* v0.10.9.2 compact category breakdown */
 #categoryPieSection,
 #homeCategoryPieBlock{
   height:auto !important;
@@ -363,7 +363,7 @@ input[type="date"]{
   min-height:0 !important;
 }
 
-/* v0.10.9.1 custom keypad */
+/* v0.10.9.2 custom keypad */
 .kaokane-keypad-backdrop{
   position:fixed;inset:0;z-index:9999;
   background:rgba(0,0,0,.22);
@@ -405,7 +405,7 @@ input.kaokane-numeric-input{
   align-items:start;
 }
 
-/* v0.10.9.1 */
+/* v0.10.9.2 */
 input.kaokane-numeric-input{
   cursor:pointer;
   caret-color:transparent;
@@ -415,13 +415,26 @@ input.kaokane-numeric-input{
 input.kaokane-numeric-input:focus{
   outline:none;
 }
+
+/* v0.10.9.2 keypad reliability */
+input.kaokane-numeric-input,
+input[type="number"][readonly]{
+  pointer-events:auto !important;
+  touch-action:manipulation;
+  cursor:pointer;
+  -webkit-user-select:none;
+  user-select:none;
+}
+.kaokane-keypad-backdrop{
+  z-index:2147483647;
+}
 </style>
 </head>
 <body><noscript><div style="padding:12px;background:#fff1f1;color:#991b1b;font-family:sans-serif;font-weight:700">JavaScriptが無効なため、このプレビューではカオカネを操作できません。SafariなどJavaScriptが動くブラウザで開いてください。</div></noscript>
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.10.9.1</div>
+    <div class="badge">v0.10.9.2</div>
   </div>
 
   <section id="home" class="screen active">
@@ -572,7 +585,7 @@ input.kaokane-numeric-input:focus{
     <div class="card">
       <form id="expenseForm" class="form-grid">
         <label>金額
-          <input id="amount" type="number" min="1" inputmode="none" placeholder="例：1280" required class="kaokane-numeric-input">
+          <input id="amount" type="number" min="1" inputmode="none" placeholder="例：1280" required class="kaokane-numeric-input" readonly>
         </label>
         <label>カテゴリ
           <select id="category"></select>
@@ -608,7 +621,7 @@ input.kaokane-numeric-input:focus{
           <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px"><input id="recurringEnabled" type="checkbox" style="width:auto"> この支出を自動更新する</label>
           <div class="inline-grid" style="margin-top:10px">
             <label>周期<select id="recurringUnit"><option value="monthly">月単位</option><option value="yearly">年単位</option></select></label>
-            <label>間隔<input id="recurringEvery" type="number" min="1" value="1" inputmode="none" class="kaokane-numeric-input"></label>
+            <label>間隔<input id="recurringEvery" type="number" min="1" value="1" inputmode="none" class="kaokane-numeric-input" readonly></label>
           </div>
           <div class="note">例：毎月＝月単位・1、2か月ごと＝月単位・2、毎年＝年単位・1。次にカオカネを開いた時、未登録分を自動追加します。</div>
         </div>
@@ -620,7 +633,7 @@ input.kaokane-numeric-input:focus{
     <div class="section-title">収入を追加</div>
     <div class="card">
       <form id="incomeForm" class="form-grid">
-        <label>金額<input id="incomeAmount" type="number" min="1" inputmode="none" required class="kaokane-numeric-input"></label>
+        <label>金額<input id="incomeAmount" type="number" min="1" inputmode="none" required class="kaokane-numeric-input" readonly></label>
         <label>カテゴリ<select id="incomeCategory"></select></label>
         <label>日付<input id="incomeDate" type="date" required></label>
         <label>メモ<textarea id="incomeMemo" placeholder="任意"></textarea></label>
@@ -636,7 +649,7 @@ input.kaokane-numeric-input:focus{
       <form id="editExpenseForm" class="form-grid">
         <input id="editId" type="hidden">
         <label>金額
-          <input id="editAmount" type="number" min="1" inputmode="none" required class="kaokane-numeric-input">
+          <input id="editAmount" type="number" min="1" inputmode="none" required class="kaokane-numeric-input" readonly>
         </label>
         <label>カテゴリ
           <select id="editCategory"></select>
@@ -672,7 +685,7 @@ input.kaokane-numeric-input:focus{
           <label style="display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px"><input id="editRecurringEnabled" type="checkbox" style="width:auto"> この支出を自動更新する</label>
           <div class="inline-grid" style="margin-top:10px">
             <label>周期<select id="editRecurringUnit"><option value="monthly">月単位</option><option value="yearly">年単位</option></select></label>
-            <label>間隔<input id="editRecurringEvery" type="number" min="1" value="1" inputmode="none" class="kaokane-numeric-input"></label>
+            <label>間隔<input id="editRecurringEvery" type="number" min="1" value="1" inputmode="none" class="kaokane-numeric-input" readonly></label>
           </div>
         </div>
 <div id="editHighWarn" class="notice red-notice hidden">高額支出です。何を購入したか分かるようにメモを入力してください。</div>
@@ -689,7 +702,7 @@ input.kaokane-numeric-input:focus{
   <div class="card">
     <form id="editIncomeForm">
       <label>金額
-        <input id="editIncomeAmount" type="number" min="0" inputmode="none" required class="kaokane-numeric-input">
+        <input id="editIncomeAmount" type="number" min="0" inputmode="none" required class="kaokane-numeric-input" readonly>
       </label>
       <label>カテゴリ
         <select id="editIncomeCategory"></select>
@@ -727,7 +740,7 @@ input.kaokane-numeric-input:focus{
     <div id="transferPanel" class="card hidden">
       <div class="inline-grid">
         <label>移動<select id="transferDirection"><option value="bankToCash">生活口座 → 現金</option><option value="cashToBank">現金 → 生活口座</option></select></label>
-        <label>金額<input id="transferAmount" type="number" min="1" inputmode="none" placeholder="0" class="kaokane-numeric-input"></label>
+        <label>金額<input id="transferAmount" type="number" min="1" inputmode="none" placeholder="0" class="kaokane-numeric-input" readonly></label>
       </div>
       <button class="btn full" style="margin-top:12px" onclick="executeTransfer()">残高に反映</button>
       <button class="btn secondary full" style="margin-top:8px" onclick="toggleTransferPanel(false)">閉じる</button>
@@ -767,10 +780,10 @@ input.kaokane-numeric-input:focus{
 
     <div id="balanceAdjustPanel" class="card hidden">
       <div class="form-grid">
-        <label>生活口座のカオカネ残高<input id="bankInput" type="number" inputmode="none" class="kaokane-numeric-input"></label>
+        <label>生活口座のカオカネ残高<input id="bankInput" type="number" inputmode="none" class="kaokane-numeric-input" readonly></label>
         <button class="btn full" onclick="updateBank()">生活口座を更新</button>
         <div class="hr"></div>
-        <label>家にある現金の現在残高<input id="cashInput" type="number" inputmode="none" class="kaokane-numeric-input"></label>
+        <label>家にある現金の現在残高<input id="cashInput" type="number" inputmode="none" class="kaokane-numeric-input" readonly></label>
         <button class="btn secondary full" onclick="updateCash()">現金残高を合わせる</button>
       </div>
     </div>
@@ -791,7 +804,7 @@ input.kaokane-numeric-input:focus{
       <div class="kicker">HIGH SPEND ALERT</div>
       <div class="threshold-input-wrap" style="margin-top:10px">
         <span class="yen-prefix">¥</span>
-        <input id="thresholdInput" class="threshold-input kaokane-numeric-input" type="number" min="1000" step="1000" inputmode="none">
+        <input id="thresholdInput" class="threshold-input kaokane-numeric-input" type="number" min="1000" step="1000" inputmode="none" readonly>
       </div>
       <div class="note">この金額以上の支出はホームで強調し、メモを必須にします。</div>
       <div class="row" style="margin-top:12px">
@@ -865,14 +878,41 @@ input.kaokane-numeric-input:focus{
 </nav>
 
 
-<script src="./app.js?v=0.10.9.1"></script>
+<div id="kaokaneKeypadBackdrop" class="kaokane-keypad-backdrop hidden" onclick="closeKaokaneKeypad(event)">
+  <div class="kaokane-keypad-sheet" onclick="event.stopPropagation()">
+    <div class="kaokane-keypad-top">
+      <div>
+        <div class="kicker">数字入力</div>
+        <div id="kaokaneKeypadValue" class="kaokane-keypad-value">0</div>
+      </div>
+      <button class="mini-action" type="button" onclick="finishKaokaneKeypad()">完了</button>
+    </div>
+    <div class="kaokane-keypad-grid">
+      <button type="button" onclick="keypadDigit('1')">1</button>
+      <button type="button" onclick="keypadDigit('2')">2</button>
+      <button type="button" onclick="keypadDigit('3')">3</button>
+      <button type="button" onclick="keypadDigit('4')">4</button>
+      <button type="button" onclick="keypadDigit('5')">5</button>
+      <button type="button" onclick="keypadDigit('6')">6</button>
+      <button type="button" onclick="keypadDigit('7')">7</button>
+      <button type="button" onclick="keypadDigit('8')">8</button>
+      <button type="button" onclick="keypadDigit('9')">9</button>
+      <button id="kaokaneKeypadSign" class="keypad-fn hidden" type="button" onclick="keypadToggleSign()">±</button>
+      <button type="button" onclick="keypadDigit('0')">0</button>
+      <button class="keypad-fn" type="button" onclick="keypadBackspace()">⌫</button>
+      <button class="keypad-clear" type="button" onclick="keypadClear()">クリア</button>
+    </div>
+  </div>
+</div>
+
+<script src="./app.js?v=0.10.9.2"></script>
 
 
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.9.1', { updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.10.9.2', { updateViaCache: 'none' });
       await reg.update();
 
       if (reg.waiting) {
@@ -902,33 +942,6 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-
-<div id="kaokaneKeypadBackdrop" class="kaokane-keypad-backdrop hidden" onclick="closeKaokaneKeypad(event)">
-  <div class="kaokane-keypad-sheet" onclick="event.stopPropagation()">
-    <div class="kaokane-keypad-top">
-      <div>
-        <div class="kicker">数字入力</div>
-        <div id="kaokaneKeypadValue" class="kaokane-keypad-value">0</div>
-      </div>
-      <button class="mini-action" type="button" onclick="finishKaokaneKeypad()">完了</button>
-    </div>
-    <div class="kaokane-keypad-grid">
-      <button type="button" onclick="keypadDigit('1')">1</button>
-      <button type="button" onclick="keypadDigit('2')">2</button>
-      <button type="button" onclick="keypadDigit('3')">3</button>
-      <button type="button" onclick="keypadDigit('4')">4</button>
-      <button type="button" onclick="keypadDigit('5')">5</button>
-      <button type="button" onclick="keypadDigit('6')">6</button>
-      <button type="button" onclick="keypadDigit('7')">7</button>
-      <button type="button" onclick="keypadDigit('8')">8</button>
-      <button type="button" onclick="keypadDigit('9')">9</button>
-      <button id="kaokaneKeypadSign" class="keypad-fn hidden" type="button" onclick="keypadToggleSign()">±</button>
-      <button type="button" onclick="keypadDigit('0')">0</button>
-      <button class="keypad-fn" type="button" onclick="keypadBackspace()">⌫</button>
-      <button class="keypad-clear" type="button" onclick="keypadClear()">クリア</button>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
