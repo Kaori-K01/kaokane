@@ -1283,14 +1283,25 @@ function renderMonthlyHistory(){
     el.monthlyCount.textContent=`${xs.length}件`;
     el.monthlyExpenseBreakdown.classList.add('hidden');
     el.monthlyListTitle.textContent='収入一覧';
-    el.monthlyHistoryList.innerHTML=xs.length?xs.map(x=>`
-      <div class="item" onclick="openIncomeEdit('${x.id}')" style="cursor:pointer">
-        <div class="item-main">
-          <div class="item-title">${esc(x.category||'収入')}</div>
-          <div class="item-sub">${[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ')}</div>
+    el.monthlyHistoryList.innerHTML=xs.length?xs.map(x=>{
+      const dateLabel=(()=>{
+        const m=String(x.date||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m?`${Number(m[2])}/${Number(m[3])}`:(x.date||'日付なし');
+      })();
+      const memo=x.memo?`<div class="monthly-income-memo">${esc(x.memo)}</div>`:'';
+      return `<div class="monthly-income-row" onclick="openIncomeEdit('${esc(x.id)}')">
+        <div class="monthly-income-main">
+          <div class="monthly-income-category">${esc(x.category||'収入')}</div>
+          <div class="monthly-income-meta">
+            <span class="monthly-income-chip">${esc(dateLabel)}</span>
+          </div>
+          ${memo}
         </div>
-        <div class="item-amount">${yen(x.amount)}</div>
-      </div>`).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の収入はありません。</div>`;
+        <div class="monthly-income-side">
+          <div class="monthly-income-amount">${yen(x.amount)}</div>
+        </div>
+      </div>`;
+    }).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の収入はありません。</div>`;
     return;
   }
 

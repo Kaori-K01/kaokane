@@ -342,7 +342,7 @@ input[type="date"]{
 }
 
 
-/* v0.10.9.7 monthly history readability */
+/* v0.10.9.8 monthly history readability */
 .monthly-history-list-card{overflow:hidden;padding:0}
 #monthlyHistoryList{display:grid}
 .monthly-expense-row{
@@ -371,11 +371,31 @@ input[type="date"]{
 .monthly-expense-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:9px;min-width:92px}
 .monthly-expense-amount{font-size:18px;font-weight:950;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.3px}
 .monthly-expense-net{font-size:10px;color:var(--muted);font-weight:800;text-align:right;line-height:1.25}
-.monthly-income-row{padding:14px 16px}
+.monthly-income-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  padding:15px 16px;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+  background:#fff;
+}
+.monthly-income-row:last-child{border-bottom:0}
+.monthly-income-row:active{background:#f7f7f8}
+.monthly-income-main{min-width:0;display:grid;gap:8px}
+.monthly-income-category{font-size:16px;font-weight:900;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.monthly-income-memo{font-size:13px;line-height:1.45;color:#555b63;overflow-wrap:anywhere}
+.monthly-income-meta{display:flex;flex-wrap:wrap;gap:6px}
+.monthly-income-chip{
+  display:inline-flex;align-items:center;min-height:24px;padding:4px 7px;border-radius:7px;
+  background:#f2f3f5;color:#5f646c;font-size:11px;font-weight:800;line-height:1.1
+}
+.monthly-income-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-start;gap:9px;min-width:92px}
+.monthly-income-amount{font-size:18px;font-weight:950;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.3px}
 @media (max-width:380px){
-  .monthly-expense-row{padding:14px 13px;gap:9px}
-  .monthly-expense-side{min-width:82px}
-  .monthly-expense-amount{font-size:17px}
+  .monthly-expense-row,.monthly-income-row{padding:14px 13px;gap:9px}
+  .monthly-expense-side,.monthly-income-side{min-width:82px}
+  .monthly-expense-amount,.monthly-income-amount{font-size:17px}
 }
 
 /* v0.10.9.6 compact category breakdown */
@@ -511,7 +531,7 @@ input[type="number"][readonly]{
 <div class="app">
   <div class="topbar">
     <div class="brand">カオカネ</div>
-    <div class="badge">v0.10.9.7</div>
+    <div class="badge">v0.10.9.8</div>
   </div>
 
   <section id="home" class="screen active">
@@ -1011,7 +1031,7 @@ input[type="number"][readonly]{
   </div>
 </div>
 
-<script src="./app.js?v=0.10.9.7"></script>
+<script src="./app.js?v=0.10.9.8"></script>
 
 
 <script>

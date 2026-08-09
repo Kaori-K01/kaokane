@@ -1,5 +1,5 @@
-const CACHE='kaokane-v0.10.9.7';
-const STATIC=['./manifest.webmanifest','./kaokane-icon-180-v1095.png','./kaokane-icon-512-v1095.png','./app.js?v=0.10.9.7'];
+const CACHE='kaokane-v0.10.9.8';
+const STATIC=['./manifest.webmanifest','./kaokane-icon-180-v1095.png','./kaokane-icon-512-v1095.png','./app.js?v=0.10.9.8'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).catch(()=>{}));});
 self.addEventListener('activate',e=>{e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim();})());});
 self.addEventListener('message',e=>{if(e.data&&e.data.type==='SKIP_WAITING')self.skipWaiting();});
