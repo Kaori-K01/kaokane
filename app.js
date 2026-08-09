@@ -1309,13 +1309,36 @@ function renderMonthlyHistory(){
   el.monthlyListTitle.textContent='支出一覧';
   el.monthlyHistoryList.innerHTML=xs.length?xs.map(x=>{
     const refunded=(x.splits||[]).filter(s=>s.settled).reduce((sum,s)=>sum+Number(s.amount||0),0);
-    const refundNote=refunded>0?`実質負担 ${yen(effectiveExpenseAmount(x))}`:'';
+    const net=effectiveExpenseAmount(x);
     const recurringNote=x.autoRecurring?'定期支出':(state.recurring.some(r=>r.sourceExpenseId===x.id)?'定期設定あり':'');
-    const sub=[x.date,x.category,x.type,x.payment,x.memo,recurringNote,refundNote].filter(Boolean).map(esc).join(' · ');
-    return `<div class="history-item" onclick="openEdit('${x.id}')">
-      <div class="history-main">
-        <div class="history-amount">${yen(x.amount)}</div>
-        <div class="history-sub">${sub}</div>
+    const dateLabel=(()=>{
+      const m=String(x.date||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m?`${Number(m[2])}/${Number(m[3])}`:(x.date||'日付なし');
+    })();
+    const typeClass=x.type==='必要'?'type-need':x.type==='娯楽'?'type-fun':'';
+    const statusChips=[
+      x.unorganized?'<span class="monthly-expense-chip status">未整理</span>':'',
+      x.approx?'<span class="monthly-expense-chip status">概算</span>':'',
+      recurringNote?`<span class="monthly-expense-chip status">${esc(recurringNote)}</span>`:''
+    ].join('');
+    const memo=x.memo?`<div class="monthly-expense-memo">${esc(x.memo)}</div>`:'';
+    const netNote=refunded>0?`<div class="monthly-expense-net">実質負担<br>${yen(net)}</div>`:'';
+    return `<div class="monthly-expense-row" onclick="openEdit('${esc(x.id)}')">
+      <div class="monthly-expense-main">
+        <div class="monthly-expense-title-row">
+          <div class="monthly-expense-category">${esc(x.category||'支出')}</div>
+        </div>
+        <div class="monthly-expense-meta">
+          <span class="monthly-expense-chip">${esc(dateLabel)}</span>
+          ${x.type?`<span class="monthly-expense-chip ${typeClass}">${esc(x.type)}</span>`:''}
+          ${x.payment?`<span class="monthly-expense-chip">${esc(x.payment)}</span>`:''}
+          ${statusChips}
+        </div>
+        ${memo}
+      </div>
+      <div class="monthly-expense-side">
+        <div class="monthly-expense-amount">${yen(x.amount)}</div>
+        ${netNote}
       </div>
     </div>`;
   }).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の支出はありません。</div>`;
