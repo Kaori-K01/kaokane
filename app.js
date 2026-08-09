@@ -9,7 +9,7 @@ const ids = [
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
 'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
-'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList','paymentMapPanel','analyticsPanel','financeChart','chartExpenseBtn','chartIncomeBtn','chartBalanceBtn','chartNote','recurringAddPanel','recurringEnabled','recurringUnit','recurringEvery','recurringEditPanel','editRecurringEnabled','editRecurringUnit','editRecurringEvery','transferPanel','transferDirection','transferAmount','categoryPie','categoryPieLegend','settlementHomeSection','settlementHomeList','homeCategoryPie','homeCategoryPieLegend','homeSortPanel','homeSortList','editIncomeForm','editIncomeAmount','editIncomeCategory','editIncomeDate','editIncomeMemo'
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList','paymentMapPanel','analyticsPanel','financeChart','chartExpenseBtn','chartIncomeBtn','chartBalanceBtn','chartNote','recurringAddPanel','recurringEnabled','recurringUnit','recurringEvery','recurringEditPanel','editRecurringEnabled','editRecurringUnit','editRecurringEvery','transferPanel','transferDirection','transferAmount','categoryPie','categoryPieLegend','settlementHomeSection','settlementHomeList','homeCategoryPie','homeCategoryPieLegend','homeSortPanel','homeSortList','editIncomeForm','editIncomeAmount','editIncomeCategory','editIncomeDate','editIncomeMemo','monthlyYearLabel','monthlyMonthGrid','monthlyExpenseBtn','monthlyIncomeBtn','monthlySelectedLabel','monthlyTotal','monthlyCount','monthlyExpenseBreakdown','monthlyNeed','monthlyFun','monthlyListTitle','monthlyHistoryList'
 ];
 const el = {};
 ids.forEach(id => el[id] = $(id));
@@ -44,7 +44,7 @@ const state = {
   set homeOrder(v){ localStorage.setItem('kaokane_home_order',JSON.stringify(v)) }
 };
 
-let expenseType='必要', editExpenseType='必要', historyFilter='all', historyKind='expense', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set(), chartMode='expense', incomeBulkMode=false, selectedIncomeIds=new Set(), editingIncomeId=null;
+let expenseType='必要', editExpenseType='必要', historyFilter='all', historyKind='expense', arcadeSum=0, bulkMode=false, selectedExpenseIds=new Set(), chartMode='expense', incomeBulkMode=false, selectedIncomeIds=new Set(), editingIncomeId=null, monthlyYear=new Date().getFullYear(), monthlyMonth=new Date().getMonth()+1, monthlyHistoryKind='expense';
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const today=()=>{ const d=new Date(); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -74,6 +74,7 @@ function go(id){
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.go===id));
   if(id==='arcade' || id==='edit') document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   render();
+  if(id==='monthlyHistory') renderMonthlyHistory();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -668,12 +669,21 @@ function drawSmartPie(canvas,legend,centerBg='#f1f2f4'){
   ctx.clearRect(0,0,W,H);
   const {rows,total}=pieDataForCurrentMonth();
   if(!total){
-    ctx.fillStyle='#8b8f96';
-    ctx.font='600 12px -apple-system,BlinkMacSystemFont,sans-serif';
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText('データなし',W/2,H/2);
-    legend.innerHTML='<div class="note">今月の支出を追加すると表示されます。</div>';
+    const cx=W/2,cy=H/2,outer=W*.46,inner=W*.29;
+    ctx.beginPath();
+    ctx.arc(cx,cy,outer,0,Math.PI*2);
+    ctx.arc(cx,cy,inner,0,Math.PI*2,true);
+    ctx.closePath();
+    ctx.fillStyle='#e4e6e9';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx,cy,inner-1,0,Math.PI*2);
+    ctx.fillStyle=centerBg;
+    ctx.fill();
+    legend.innerHTML=`<div class="empty-pie-note">
+      <div class="empty-pie-title">今月の支出はありません</div>
+      <div class="empty-pie-amount">¥0</div>
+    </div>`;
     return;
   }
   const colors=['#e2766d','#525b68','#8e96a0','#b3a79e','#738177','#a08a8a','#6d7075','#c3bbb2','#59616a','#aaaeb3'];
@@ -868,6 +878,95 @@ function incomeItemHTML(x){
   </div>`;
 }
 
+
+function openMonthlyHistory(){
+  const now=new Date();
+  monthlyYear=now.getFullYear();
+  monthlyMonth=now.getMonth()+1;
+  monthlyHistoryKind=historyKind==='income'?'income':'expense';
+  renderMonthlyHistory();
+  go('monthlyHistory');
+}
+function changeMonthlyYear(delta){
+  monthlyYear+=Number(delta||0);
+  renderMonthlyHistory();
+}
+function selectMonthlyMonth(month){
+  monthlyMonth=Number(month);
+  renderMonthlyHistory();
+}
+function setMonthlyHistoryKind(kind){
+  monthlyHistoryKind=kind;
+  renderMonthlyHistory();
+}
+function monthlyKey(year,month){
+  return `${year}-${String(month).padStart(2,'0')}`;
+}
+function monthHasAnyData(year,month){
+  const key=monthlyKey(year,month);
+  return state.expenses.some(x=>monthKey(x.date)===key) || state.incomes.some(x=>monthKey(x.date)===key);
+}
+function renderMonthlyHistory(){
+  if(!el.monthlyYearLabel)return;
+  const key=monthlyKey(monthlyYear,monthlyMonth);
+
+  el.monthlyYearLabel.textContent=`${monthlyYear}年`;
+  el.monthlyMonthGrid.innerHTML=Array.from({length:12},(_,i)=>{
+    const m=i+1;
+    const active=m===monthlyMonth?'active':'';
+    const has=monthHasAnyData(monthlyYear,m)?'has-data':'';
+    return `<button class="monthly-month-btn ${active} ${has}" onclick="selectMonthlyMonth(${m})">${m}月</button>`;
+  }).join('');
+
+  el.monthlyExpenseBtn.classList.toggle('active',monthlyHistoryKind==='expense');
+  el.monthlyIncomeBtn.classList.toggle('active',monthlyHistoryKind==='income');
+  el.monthlySelectedLabel.textContent=`${monthlyYear}年${monthlyMonth}月`;
+
+  if(monthlyHistoryKind==='income'){
+    const xs=state.incomes
+      .filter(x=>monthKey(x.date)===key)
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''));
+    const total=xs.reduce((s,x)=>s+Number(x.amount||0),0);
+    el.monthlyTotal.textContent=yen(total);
+    el.monthlyCount.textContent=`${xs.length}件`;
+    el.monthlyExpenseBreakdown.classList.add('hidden');
+    el.monthlyListTitle.textContent='収入一覧';
+    el.monthlyHistoryList.innerHTML=xs.length?xs.map(x=>`
+      <div class="history-item" onclick="openIncomeEdit('${x.id}')">
+        <div class="history-main">
+          <div class="history-amount">＋${yen(x.amount)}</div>
+          <div class="history-sub">${[x.date,x.category,x.memo].filter(Boolean).map(esc).join(' · ')}</div>
+        </div>
+      </div>`).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の収入はありません。</div>`;
+    return;
+  }
+
+  const xs=state.expenses
+    .filter(x=>monthKey(x.date)===key)
+    .sort((a,b)=>(b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+  const total=xs.reduce((s,x)=>s+effectiveExpenseAmount(x),0);
+  const need=xs.filter(x=>x.type==='必要').reduce((s,x)=>s+effectiveExpenseAmount(x),0);
+  const fun=xs.filter(x=>x.type==='娯楽').reduce((s,x)=>s+effectiveExpenseAmount(x),0);
+
+  el.monthlyTotal.textContent=yen(total);
+  el.monthlyCount.textContent=`${xs.length}件`;
+  el.monthlyExpenseBreakdown.classList.remove('hidden');
+  el.monthlyNeed.textContent=yen(need);
+  el.monthlyFun.textContent=yen(fun);
+  el.monthlyListTitle.textContent='支出一覧';
+  el.monthlyHistoryList.innerHTML=xs.length?xs.map(x=>{
+    const refunded=(x.splits||[]).filter(s=>s.settled).reduce((sum,s)=>sum+Number(s.amount||0),0);
+    const refundNote=refunded>0?`実質負担 ${yen(effectiveExpenseAmount(x))}`:'';
+    const recurringNote=x.autoRecurring?'定期支出':(state.recurring.some(r=>r.sourceExpenseId===x.id)?'定期設定あり':'');
+    const sub=[x.date,x.category,x.type,x.payment,x.memo,recurringNote,refundNote].filter(Boolean).map(esc).join(' · ');
+    return `<div class="history-item" onclick="openEdit('${x.id}')">
+      <div class="history-main">
+        <div class="history-amount">${yen(x.amount)}</div>
+        <div class="history-sub">${sub}</div>
+      </div>
+    </div>`;
+  }).join(''):`<div class="monthly-empty">${monthlyYear}年${monthlyMonth}月の支出はありません。</div>`;
+}
 function toggleIncomeBulkMode(){
   incomeBulkMode=!incomeBulkMode;
   if(!incomeBulkMode)selectedIncomeIds.clear();
@@ -1031,7 +1130,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind
 });
 
 try{
