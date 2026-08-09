@@ -9,7 +9,7 @@ const ids = [
 'category','needBtn','funBtn','payment','date','memo','approx','highWarn','incomeForm','incomeAmount',
 'incomeCategory','incomeDate','incomeMemo','assetTotal','bankUpdated','bankValue','cashValue','bankInput',
 'cashInput','thresholdInput','arcadeTotal','editExpenseForm','editId','editAmount','editCategory',
-'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList','paymentMapPanel','analyticsPanel','financeChart','chartExpenseBtn','chartIncomeBtn','chartBalanceBtn','chartNote','recurringAddPanel','recurringEnabled','recurringUnit','recurringEvery','recurringEditPanel','editRecurringEnabled','editRecurringUnit','editRecurringEvery','transferPanel','transferDirection','transferAmount','categoryPie','categoryPieLegend','settlementHomeSection','settlementHomeList','homeCategoryPie','homeCategoryPieLegend','homeSortPanel','homeSortList','editIncomeForm','editIncomeAmount','editIncomeCategory','editIncomeDate','editIncomeMemo','monthlyYearLabel','monthlyMonthGrid','monthlyExpenseBtn','monthlyIncomeBtn','monthlySelectedLabel','monthlyTotal','monthlyCount','monthlyExpenseBreakdown','monthlyNeed','monthlyFun','monthlyListTitle','monthlyHistoryList'
+'editNeedBtn','editFunBtn','editPayment','editDate','editMemo','editApprox','editHighWarn','bulkModeBtn','bulkDeleteBtn','bulkInfo','bulkControls','expenseFilters','histExpenseBtn','histIncomeBtn','thresholdDisplay','thresholdEditPanel','balanceAdjustPanel','homeIncomeTotal','homeIncomeList','incomeMonthTitle','unsettledSection','unsettledList','splitEditor','splitRows','editSplitEditor','editSplitRows','paymentMapList','paymentMapPanel','analyticsPanel','financeChart','chartExpenseBtn','chartIncomeBtn','chartBalanceBtn','chartNote','analysisBreakdownTitle','kaokaneKeypadBackdrop','kaokaneKeypadValue','kaokaneKeypadSign','recurringAddPanel','recurringEnabled','recurringUnit','recurringEvery','recurringEditPanel','editRecurringEnabled','editRecurringUnit','editRecurringEvery','transferPanel','transferDirection','transferAmount','categoryPie','categoryPieLegend','settlementHomeSection','settlementHomeList','homeCategoryPie','homeCategoryPieLegend','homeSortPanel','homeSortList','editIncomeForm','editIncomeAmount','editIncomeCategory','editIncomeDate','editIncomeMemo','monthlyYearLabel','monthlyMonthGrid','monthlyExpenseBtn','monthlyIncomeBtn','monthlySelectedLabel','monthlyTotal','monthlyCount','monthlyExpenseBreakdown','monthlyNeed','monthlyFun','monthlyListTitle','monthlyHistoryList'
 ];
 const el = {};
 ids.forEach(id => el[id] = $(id));
@@ -50,7 +50,77 @@ const today=()=>{ const d=new Date(); const y=d.getFullYear(),m=String(d.getMont
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+
+let activeNumericInput=null;
+let keypadBuffer='';
+
+function isSignedNumericInput(input){
+  return input && (input.id==='bankInput' || input.id==='cashInput');
+}
+function openKaokaneKeypad(input){
+  if(!input)return;
+  activeNumericInput=input;
+  keypadBuffer=String(input.value||'');
+  if(keypadBuffer==='0')keypadBuffer='';
+  el.kaokaneKeypadSign.classList.toggle('hidden',!isSignedNumericInput(input));
+  updateKaokaneKeypadDisplay();
+  el.kaokaneKeypadBackdrop.classList.remove('hidden');
+}
+function updateKaokaneKeypadDisplay(){
+  if(!el.kaokaneKeypadValue)return;
+  const shown=keypadBuffer===''?0:keypadBuffer;
+  el.kaokaneKeypadValue.textContent=Number(shown||0).toLocaleString('ja-JP');
+}
+function keypadDigit(d){
+  if(!activeNumericInput)return;
+  const negative=keypadBuffer.startsWith('-');
+  let body=negative?keypadBuffer.slice(1):keypadBuffer;
+  body=(body==='0'?'':body)+d;
+  body=body.replace(/^0+(?=\d)/,'');
+  keypadBuffer=(negative?'-':'')+body;
+  updateKaokaneKeypadDisplay();
+}
+function keypadBackspace(){
+  if(!activeNumericInput)return;
+  keypadBuffer=keypadBuffer.slice(0,-1);
+  if(keypadBuffer==='-')keypadBuffer='';
+  updateKaokaneKeypadDisplay();
+}
+function keypadClear(){
+  keypadBuffer='';
+  updateKaokaneKeypadDisplay();
+}
+function keypadToggleSign(){
+  if(!activeNumericInput||!isSignedNumericInput(activeNumericInput))return;
+  if(keypadBuffer.startsWith('-'))keypadBuffer=keypadBuffer.slice(1);
+  else keypadBuffer='-'+(keypadBuffer||'0');
+  updateKaokaneKeypadDisplay();
+}
+function finishKaokaneKeypad(){
+  if(!activeNumericInput)return;
+  activeNumericInput.value=keypadBuffer===''?'':keypadBuffer;
+  activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
+  activeNumericInput.dispatchEvent(new Event('change',{bubbles:true}));
+  el.kaokaneKeypadBackdrop.classList.add('hidden');
+  activeNumericInput=null;
+}
+function closeKaokaneKeypad(event){
+  if(event && event.target!==el.kaokaneKeypadBackdrop)return;
+  finishKaokaneKeypad();
+}
+function bindCustomNumericKeypad(){
+  document.querySelectorAll('input[type="number"]').forEach(input=>{
+    input.setAttribute('readonly','readonly');
+    input.classList.add('kaokane-numeric-input');
+    input.addEventListener('click',()=>openKaokaneKeypad(input));
+    input.addEventListener('focus',()=>{
+      input.blur();
+      openKaokaneKeypad(input);
+    });
+  });
+}
 function setup(){
+  bindCustomNumericKeypad();
   if(el.editIncomeCategory) el.editIncomeCategory.innerHTML=incomeCategories.map(c=>`<option>${esc(c)}</option>`).join('');
   if(el.editIncomeForm) el.editIncomeForm.addEventListener('submit',saveIncomeEdit);
   el.category.innerHTML=categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
@@ -512,6 +582,8 @@ function setChartMode(mode){
   el.chartIncomeBtn.classList.toggle('active',mode==='income');
   el.chartBalanceBtn.classList.toggle('active',mode==='balance');
   renderFinanceChart();
+
+  renderCategoryPie();
 }
 function monthKey(d){
   return String(d||'').slice(0,7);
@@ -738,8 +810,109 @@ function drawSmartPie(canvas,legend,centerBg='#f1f2f4'){
     </div>`;
   }).join('');
 }
+
+function drawBreakdownPieFromRows(canvas,legend,rows,centerBg='#f1f2f4',emptyText='データはありません'){
+  if(!canvas||!legend)return;
+  const safeRows=rows.filter(([,v])=>Number(v)!==0);
+  const absTotal=safeRows.reduce((s,[,v])=>s+Math.abs(Number(v||0)),0);
+  const {ctx,W,H}=prepareHiDPICanvas(canvas,132);
+  ctx.clearRect(0,0,W,H);
+
+  if(!absTotal){
+    const cx=W/2,cy=H/2,outer=W*.46,inner=W*.29;
+    ctx.beginPath();
+    ctx.arc(cx,cy,outer,0,Math.PI*2);
+    ctx.arc(cx,cy,inner,0,Math.PI*2,true);
+    ctx.closePath();
+    ctx.fillStyle='#e4e6e9';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx,cy,inner-1,0,Math.PI*2);
+    ctx.fillStyle=centerBg;
+    ctx.fill();
+    legend.innerHTML=`<div class="empty-pie-note">
+      <div class="empty-pie-title">${esc(emptyText)}</div>
+      <div class="empty-pie-amount">¥0</div>
+    </div>`;
+    return;
+  }
+
+  const colors=['#e2766d','#525b68','#8e96a0','#b3a79e','#738177','#a08a8a','#6d7075','#c3bbb2','#59616a','#aaaeb3'];
+  const cx=W/2,cy=H/2,outer=W*.46,inner=W*.29;
+  let angle=-Math.PI/2;
+  safeRows.forEach(([name,val],i)=>{
+    const next=angle+(Math.abs(Number(val))/absTotal)*Math.PI*2;
+    ctx.beginPath();
+    ctx.arc(cx,cy,outer,angle,next);
+    ctx.arc(cx,cy,inner,next,angle,true);
+    ctx.closePath();
+    ctx.fillStyle=colors[i%colors.length];
+    ctx.fill();
+    angle=next;
+  });
+
+  ctx.beginPath();
+  ctx.arc(cx,cy,inner-1,0,Math.PI*2);
+  ctx.fillStyle=centerBg;
+  ctx.fill();
+
+  const signedTotal=safeRows.reduce((s,[,v])=>s+Number(v||0),0);
+  ctx.fillStyle='#202124';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font='700 10px -apple-system,BlinkMacSystemFont,sans-serif';
+  ctx.fillText('合計',cx,cy-9);
+  ctx.font='800 13px -apple-system,BlinkMacSystemFont,sans-serif';
+  const totalLabel=yen(signedTotal);
+  ctx.fillText(totalLabel.length>11?'表示中':totalLabel,cx,cy+9);
+
+  legend.innerHTML=safeRows.map(([name,val],i)=>{
+    const pct=Math.round(Math.abs(Number(val))/absTotal*100);
+    return `<div class="pie-row">
+      <span class="pie-dot" style="background:${colors[i%colors.length]}"></span>
+      <span class="pie-name">${esc(name)}</span>
+      <span>
+        <span class="pie-percent">${pct}%</span>
+        <span class="pie-value"> · ${yen(Number(val))}</span>
+      </span>
+    </div>`;
+  }).join('');
+}
 function renderCategoryPie(){
-  drawSmartPie(el.categoryPie,el.categoryPieLegend,'#f1f2f4');
+  if(!el.categoryPie||!el.categoryPieLegend)return;
+  if(chartMode==='expense'){
+    if(el.analysisBreakdownTitle)el.analysisBreakdownTitle.textContent='今月の支出内訳';
+    drawSmartPie(el.categoryPie,el.categoryPieLegend,'#f1f2f4');
+    return;
+  }
+
+  if(chartMode==='income'){
+    if(el.analysisBreakdownTitle)el.analysisBreakdownTitle.textContent='今月の収入内訳';
+    const current=monthKey(today()),totals={};
+    state.incomes.filter(x=>monthKey(x.date)===current).forEach(x=>{
+      const name=x.category||'その他';
+      totals[name]=(totals[name]||0)+Number(x.amount||0);
+    });
+    drawBreakdownPieFromRows(
+      el.categoryPie,
+      el.categoryPieLegend,
+      Object.entries(totals).filter(([,v])=>v!==0).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])),
+      '#f1f2f4',
+      '今月の収入はありません'
+    );
+    return;
+  }
+
+  if(el.analysisBreakdownTitle)el.analysisBreakdownTitle.textContent='現在の残高内訳';
+  const a=state.assets;
+  const rows=[['生活口座',Number(a.bank||0)],['現金',Number(a.cash||0)]];
+  drawBreakdownPieFromRows(
+    el.categoryPie,
+    el.categoryPieLegend,
+    rows,
+    '#f1f2f4',
+    '残高はありません'
+  );
 }
 
 function toggleThresholdEdit(force){
@@ -1166,8 +1339,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind
-});
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad});
 
 try{
   localStorage.setItem('kaokane_test','ok');
