@@ -151,6 +151,12 @@ function bindCustomNumericKeypad(){
   document.addEventListener('click',handler);
 }
 function setup(){
+  const balanceModal=document.getElementById('balanceHistoryModal');
+  if(balanceModal){
+    balanceModal.addEventListener('click',e=>{
+      if(e.target===balanceModal)closeBalanceAdjustmentHistory();
+    });
+  }
   bindCustomNumericKeypad();
   if(el.editIncomeCategory) el.editIncomeCategory.innerHTML=incomeCategories.map(c=>`<option>${esc(c)}</option>`).join('');
   if(el.editIncomeForm) el.editIncomeForm.addEventListener('submit',saveIncomeEdit);
@@ -369,11 +375,20 @@ function recordBalanceAdjustment(target,before,after){
   state.balanceAdjustments=arr.slice(-500);
 }
 function toggleBalanceAdjustmentHistory(force){
-  const panel=el.balanceAdjustmentHistoryPanel;
-  if(!panel)return;
-  const show=typeof force==='boolean'?force:panel.classList.contains('hidden');
-  panel.classList.toggle('hidden',!show);
-  if(show)renderBalanceAdjustmentHistory();
+  const modal=document.getElementById('balanceHistoryModal');
+  if(!modal)return;
+  const show=typeof force==='boolean'?force:modal.classList.contains('hidden');
+  if(show){
+    renderBalanceAdjustmentHistory();
+    modal.classList.remove('hidden');
+    document.body.style.overflow='hidden';
+  }else{
+    modal.classList.add('hidden');
+    document.body.style.overflow='';
+  }
+}
+function closeBalanceAdjustmentHistory(){
+  toggleBalanceAdjustmentHistory(false);
 }
 function formatAdjustmentDate(ts){
   try{
@@ -382,7 +397,7 @@ function formatAdjustmentDate(ts){
   }catch{return ''}
 }
 function renderBalanceAdjustmentHistory(){
-  const box=el.balanceAdjustmentHistoryList;
+  const box=document.getElementById('balanceAdjustmentHistoryList');
   if(!box)return;
   const xs=state.balanceAdjustments.slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
   if(!xs.length){
@@ -1108,7 +1123,7 @@ function updateBulkInfo(){
 }
 
 function bulkDelete(){
-  const ids=[...selectedExpenseIds,'balanceAdjustmentHistoryPanel','balanceAdjustmentHistoryList'];
+  const ids=[...selectedExpenseIds,'balanceAdjustmentHistoryList','balanceHistoryModal'];
   if(ids.length===0) return;
   if(!confirm(`${ids.length}件の支出をまとめて削除しますか？`)) return;
 
@@ -1434,7 +1449,7 @@ window.addEventListener('pageshow',()=>{
 
 Object.assign(window,{
   go,pickType,pickEditType,quickAmount,setHistoryFilter,startArcade,arcadeAdd,finishArcade,cancelArcade,
-  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad,toggleBalanceAdjustmentHistory});
+  updateBank,updateCash,saveThreshold,openEdit,deleteCurrentExpense,resetAllData,toggleBulkMode,toggleSelectExpense,bulkDelete,toggleThresholdEdit,toggleBalanceAdjust,setHistoryKind,toggleSplitEditor,toggleEditSplitEditor,addSplitRow,addEditSplitRow,markSplitSettled,savePaymentMap,togglePaymentMapPanel,toggleAnalytics,setChartMode,toggleRecurringDetail,toggleTransferPanel,executeTransfer,addPaybackReminder,settlePending,toggleHistoryBulkMode,toggleIncomeBulkMode,toggleIncomeSelected,deleteSelectedIncomes,openIncomeEdit,toggleHomeSortPanel,moveHomeBlock,openMonthlyHistory,changeMonthlyYear,selectMonthlyMonth,setMonthlyHistoryKind,openKaokaneKeypad,keypadDigit,keypadBackspace,keypadClear,keypadToggleSign,finishKaokaneKeypad,closeKaokaneKeypad,toggleBalanceAdjustmentHistory,closeBalanceAdjustmentHistory});
 
 try{
   localStorage.setItem('kaokane_test','ok');
